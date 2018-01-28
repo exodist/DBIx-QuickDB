@@ -151,7 +151,7 @@ sub connect_string {
 
 sub load_sql {
     my $self = shift;
-    my ($file) = @_;
+    my ($dbname, $file) = @_;
 
     my $dir = $self->{+DIR};
 
@@ -160,7 +160,7 @@ sub load_sql {
         '-h' => $dir,
         '-v' => 'ON_ERROR_STOP=1',
         '-f' => $file,
-        'quickdb'
+        $dbname,
     ]);
 }
 

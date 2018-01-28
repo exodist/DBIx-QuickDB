@@ -15,6 +15,9 @@ print STDERR "\n";
 
 {
     my %cmds = (
+        SQLite => {
+            sqlite3 => '--version',
+        },
         PostgreSQL => {
             initdb   => '-V',
             createdb => '-V',
@@ -40,6 +43,7 @@ print STDERR "\n";
                 chomp($ver = $set->{$cmd} ? `$found $set->{$cmd}` : 'N/A');
                 $ver =~ s/\s*$found\s*//g;
                 $ver =~ s/,?\s*for.*$//g;
+                $ver =~ s/\s[0-9a-f]+$//gi;
             }
 
             push @rows => [$cmd, $found ? 'yes' : 'no', $ver || 'N/A'];

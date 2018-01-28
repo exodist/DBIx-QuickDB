@@ -204,7 +204,7 @@ sub bootstrap {
 
 sub load_sql {
     my $self = shift;
-    my ($file) = @_;
+    my ($db_name, $file) = @_;
 
     my $cfg_file = $self->{+CFG_FILE};
 
@@ -213,7 +213,7 @@ sub load_sql {
             $self->{+MYSQL},
             "--defaults-file=$cfg_file",
             '-u' => 'root',
-            'quickdb'
+            $db_name,
         ],
         {stdin => $file},
     );

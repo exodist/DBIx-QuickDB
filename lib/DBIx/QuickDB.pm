@@ -74,10 +74,15 @@ sub build_db {
     $inst->bootstrap if $spec->{bootstrap};
     $inst->start     if $spec->{autostart};
 
+    # load_sql => {
+    #   postgresql => [db => $file, $db => $file],
+    # }
     if (my $sql = $spec->{load_sql}) {
         $sql = $sql->{$driver} if ref($sql) eq 'HASH';
-        $sql = [$sql] unless ref $sql;
-        $inst->load_sql($_) for @$sql;
+        for (my $i = 0; $i < @$sql; $i += 2) {
+            my ($db, $file) = @{$sql}[$i, $i + 1];
+            $inst->load_sql($db => $file);
+        }
     }
 
     return $inst;

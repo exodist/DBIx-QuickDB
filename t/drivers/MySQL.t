@@ -4,7 +4,7 @@ use Test2::Tools::QuickDB;
 skipall_unless_can_db('MySQL');
 
 subtest use_it => sub {
-    my $db = get_db db => {driver => 'MySQL', load_sql => 't/schema/mysql.sql'};
+    my $db = get_db db => {driver => 'MySQL', load_sql => [quickdb => 't/schema/mysql.sql']};
     isa_ok($db, [$CLASS], "Got a database of the right type");
 
     is(get_db_or_skipall('db'), exact_ref($db), "Cached the instance by name");
@@ -25,7 +25,7 @@ subtest use_it => sub {
 };
 
 subtest cleanup => sub {
-    my $db = get_db {driver => 'MySQL', load_sql => 't/schema/mysql.sql'};
+    my $db = get_db {driver => 'MySQL', load_sql => [quickdb => 't/schema/mysql.sql']};
     my $dir = $db->dir;
     my $pid = $db->pid;
 

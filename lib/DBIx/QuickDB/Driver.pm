@@ -21,7 +21,7 @@ use DBIx::QuickDB::Util::HashBase qw{
     -password
 };
 
-sub viable { 0 }
+sub viable { (0, "socket() is not implemented for the " . $_[0]->name . " driver") }
 
 sub socket         { confess "socket() is not implemented for the " . $_[0]->name . " driver" }
 sub load_sql       { confess "load_sql() is not implemented for the " . $_[0]->name . " driver" }
