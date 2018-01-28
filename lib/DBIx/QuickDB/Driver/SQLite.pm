@@ -91,5 +91,58 @@ sub shell_command {
     return ($self->{+SQLITE}, $path);
 }
 
-
 1;
+
+__END__
+
+=pod
+
+=encoding UTF-8
+
+=head1 NAME
+
+DBIx::QuickDB::Driver::SQLite - SQLite driver for DBIx::QuickDB.
+
+=head1 DESCRIPTION
+
+SQLite driver for L<DBIx::QuickDB>.
+
+=head1 SYNOPSIS
+
+See L<DBIx::QuickDB>.
+
+=head1 TODO - MORE DOCS
+
+This is a VERY alpha release, more docs to come, API may change completely.
+
+=head1 SOURCE
+
+The source code repository for DBIx-QuickDB can be found at
+F<https://github.com/exodist/DBIx-QuickDB/>.
+
+=head1 MAINTAINERS
+
+=over 4
+
+=item Chad Granum E<lt>exodist@cpan.orgE<gt>
+
+=back
+
+=head1 AUTHORS
+
+=over 4
+
+=item Chad Granum E<lt>exodist@cpan.orgE<gt>
+
+=back
+
+=head1 COPYRIGHT
+
+Copyright 2018 Chad Granum E<lt>exodist7@gmail.comE<gt>.
+
+This program is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+See F<http://dev.perl.org/licenses/>
+
+=cut
