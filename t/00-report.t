@@ -34,10 +34,15 @@ print STDERR "\n";
         my @rows;
         for my $cmd (sort keys %$set) {
             my $found = can_run($cmd);
-            chomp(my $ver = ($found && $set->{$cmd}) ? `$found $set->{$cmd}` : 'N/A');
-            $ver =~ s/\s*$found\s*//g;
-            $ver =~ s/,?\s*for.*$//g;
-            push @rows => [$cmd, $found ? 'yes' : 'no', $ver];
+
+            my $ver;
+            if ($found) {
+                chomp($ver = $set->{$cmd} ? `$found $set->{$cmd}` : 'N/A');
+                $ver =~ s/\s*$found\s*//g;
+                $ver =~ s/,?\s*for.*$//g;
+            }
+
+            push @rows => [$cmd, $found ? 'yes' : 'no', $ver || 'N/A'];
         }
 
         my @table = table(
