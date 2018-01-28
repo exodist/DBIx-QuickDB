@@ -48,7 +48,6 @@ sub _default_config {
     return (
         datestyle                  => "'iso, mdy'",
         default_text_search_config => "'pg_catalog.english'",
-        dynamic_shared_memory_type => "posix",
         lc_messages                => "'en_US.UTF-8'",
         lc_monetary                => "'en_US.UTF-8'",
         lc_numeric                 => "'en_US.UTF-8'",
@@ -58,6 +57,7 @@ sub _default_config {
         shared_buffers             => "128MB",
         unix_socket_directories    => "'$self->{+DIR}'",
 
+        #dynamic_shared_memory_type => "posix",
         #log_timezone               => "'US/Pacific'",
         #timezone                   => "'US/Pacific'",
     );
@@ -224,7 +224,7 @@ sub stop {
 sub connect_string {
     my $self = shift;
     my ($db_name) = @_;
-    $db_name ||= 'quickdb';
+    $db_name = 'quickdb' unless defined $db_name;
 
     my $dir = $self->{+DIR};
 

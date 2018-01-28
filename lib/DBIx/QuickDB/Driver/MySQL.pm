@@ -69,19 +69,19 @@ sub _default_config {
             'default-storage-engine'  => 'InnoDB',
             'innodb_buffer_pool_size' => '20M',
             'key_buffer_size'         => '20M',
+            'max_connections'         => '100',
+            'server-id'               => '1',
+            'skip-external-locking'   => '',
+            'skip-networking'         => '',
+            'skip_name_resolve'       => '1',
             'max_allowed_packet'      => '1M',
             'max_binlog_size'         => '20M',
-            'max_connections'         => '100',
             'myisam_sort_buffer_size' => '8M',
             'net_buffer_length'       => '8K',
             'query_cache_limit'       => '1M',
             'query_cache_size'        => '20M',
             'read_buffer_size'        => '256K',
             'read_rnd_buffer_size'    => '512K',
-            'server-id'               => '1',
-            'skip-external-locking'   => '',
-            'skip-networking'         => '',
-            'skip_name_resolve'       => '1',
             'sort_buffer_size'        => '512K',
             'table_open_cache'        => '64',
             'thread_cache_size'       => '8',
@@ -157,7 +157,7 @@ sub init {
 sub connect_string {
     my $self = shift;
     my ($db_name) = @_;
-    $db_name ||= 'quickdb';
+    $db_name = 'quickdb' unless defined $db_name;
 
     my $socket = $self->{+SOCKET};
 
@@ -215,7 +215,7 @@ sub bootstrap {
     $self->start;
 
     for my $try ( 1 .. 5 ) {
-        my $dbh = $self->connect('test');
+        my $dbh = $self->connect('');
         $dbh->do('CREATE DATABASE quickdb') and last;
         die $dbh->errstr if $try == 5;
         sleep 1;

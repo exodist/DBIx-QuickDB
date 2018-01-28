@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Minor bug fixes
+    - Add diagnostics for tests
+
 0.000001  2018-01-28 00:09:47-08:00 America/Los_Angeles
 
     - Initial Release
