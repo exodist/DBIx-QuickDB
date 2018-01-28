@@ -12,20 +12,28 @@ use Importer Importer => 'import';
 our @EXPORT = qw/get_db_or_skipall get_db skipall_unless_can_db/;
 
 sub skipall_unless_can_db {
-    my ($driver, $spec) = @_;
+    my ($in, $spec) = @_;
 
     $spec ||= {bootstrap => 1, autostart => 1, load_sql => 1};
 
     my $ctx = context();
 
-    my ($v, $fqn, $why) = DBIx::QuickDB->check_driver($driver, $spec);
+    my $drivers = ref($in) ? $in : [$in];
 
-    if ($v) {
-        $ctx->release;
-        return $fqn;
+    my $ok = 0;
+    for my $driver ($in) {
+        my ($v, $fqn, $why) = DBIx::QuickDB->check_driver($driver, $spec);
+        next unless $v;
+        $ok = 1;
+        last;
     }
 
-    $ctx->plan(0, 'SKIP' => "$driver db driver is not viable\n$why");
+    if ($ok) {
+        $ctx->release;
+        return 1;
+    }
+
+    $ctx->plan(0, 'SKIP' => "no db driver is viable");
     $ctx->release;
 
     return;
