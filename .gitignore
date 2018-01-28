@@ -19,3 +19,4 @@ POD_TEMPLATE.POD
 template.POD
 template.pod
 *.html
+mysql-bin.index
