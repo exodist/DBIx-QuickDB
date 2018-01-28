@@ -2,7 +2,7 @@ package Test2::Tools::QuickDB;
 use strict;
 use warnings;
 
-our $VERSION = '0.000002';
+our $VERSION = '0.000003';
 
 use Test2::API qw/context/;
 use DBIx::QuickDB();
