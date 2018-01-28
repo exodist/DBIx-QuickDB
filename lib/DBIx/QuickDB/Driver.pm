@@ -2,7 +2,7 @@ package DBIx::QuickDB::Driver;
 use strict;
 use warnings;
 
-our $VERSION = '0.000001';
+our $VERSION = '0.000002';
 
 use File::Path qw/remove_tree/;
 
