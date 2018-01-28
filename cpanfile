@@ -21,5 +21,6 @@ on 'configure' => sub {
 };
 
 on 'develop' => sub {
+  requires "DBD::SQLite" => "1.44";
   requires "Test::Pod" => "1.41";
 };
