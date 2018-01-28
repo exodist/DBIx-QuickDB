@@ -115,13 +115,14 @@ sub connect {
 
 sub start {
     my $self = shift;
+    my @args = @_;
 
     my $dir = $self->{+DIR};
     my $socket = $self->socket;
 
     return if $self->{+PID} || -S $socket;
 
-    my ($pid, $log_file) = $self->run_command([$self->start_command], {no_wait => 1});
+    my ($pid, $log_file) = $self->run_command([$self->start_command, @args], {no_wait => 1});
 
     my $start = time;
     until (-S $socket) {
@@ -135,7 +136,7 @@ sub start {
         }
 
         if (waitpid($pid, WNOHANG) == $pid) {
-            $dump = "Server failed to start:"
+            $dump = "Server failed to start ($?):"
         }
 
         if ($dump) {
