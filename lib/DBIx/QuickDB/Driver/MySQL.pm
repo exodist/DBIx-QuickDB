@@ -4,17 +4,12 @@ use warnings;
 
 our $VERSION = '0.000003';
 
-use Carp qw/confess/;
 use IPC::Cmd qw/can_run/;
-use Time::HiRes qw/sleep/;
-use POSIX ":sys_wait_h";
 
 use parent 'DBIx::QuickDB::Driver';
 
 use DBIx::QuickDB::Util::HashBase qw{
     -data_dir -temp_dir -socket -pid_file -cfg_file
-    -pid
-    -log_file
 
     -mysql_install_db -mysqld -mysql
 
@@ -130,7 +125,10 @@ sub init {
     $self->{+TEMP_DIR} = $self->{+DIR} . '/temp';
     $self->{+PID_FILE} = $self->{+DIR} . '/mysql.pid';
     $self->{+CFG_FILE} = $self->{+DIR} . '/my.cfg';
-    $self->{+SOCKET} = $self->{+DIR} . '/mysql.sock';
+
+    $self->{+SOCKET} ||= $self->{+DIR} . '/mysql.sock';
+
+    $self->{+USERNAME} ||= 'root';
 
     my %defaults = $self->_default_paths;
     $self->{$_} ||= $defaults{$_} for keys %defaults;
@@ -152,28 +150,6 @@ sub init {
             $cfg->{$key} = $cfg_defs{$key};
         }
     }
-}
-
-sub connect_string {
-    my $self = shift;
-    my ($db_name) = @_;
-    $db_name = 'quickdb' unless defined $db_name;
-
-    my $socket = $self->{+SOCKET};
-
-    return "dbi:mysql:dbname=$db_name;mysql_socket=$socket";
-}
-
-sub connect {
-    my $self = shift;
-    my ($db_name, %params) = @_;
-
-    %params = (AutoCommit => 1) unless @_ > 1;
-
-    my $cstring = $self->connect_string($db_name);
-
-    require DBI;
-    return DBI->connect($cstring, "root", "", \%params);
 }
 
 sub bootstrap {
@@ -226,82 +202,6 @@ sub bootstrap {
     return;
 }
 
-sub stop {
-    my $self = shift;
-
-    my $pid = $self->{+PID} or return;
-
-    local $?;
-    kill('TERM', $pid);
-    my $ret = waitpid($pid, 0);
-    my $exit = $?;
-    die "waitpid returned $ret (expected $pid)" unless $ret == $pid;
-
-    if ($exit) {
-        my $msg = "";
-        if (my $lf = $self->{+LOG_FILE}) {
-            if (open(my $fh, '<', $lf)) {
-                $msg = "\n" . join "" => <$fh>;
-            }
-            else {
-                $msg = "\nCould not open mysqld log file '$lf': $!";
-            }
-        }
-        warn "mysqld exited badly ($exit)$msg";
-    }
-
-    delete $self->{+LOG_FILE};
-    delete $self->{+PID};
-}
-
-sub start {
-    my $self = shift;
-
-    my $dir = $self->{+DIR};
-    my $socket = $self->{+SOCKET};
-
-    return if $self->{+PID} || -S $socket;
-
-    my $cfg_file = $self->{+CFG_FILE};
-    my ($pid, $log_file) = $self->run_command([$self->{+MYSQLD}, "--defaults-file=$cfg_file"], {no_wait => 1});
-
-    my $start = time;
-    until (-S $socket) {
-        my $waited = time - $start;
-        my $dump = 0;
-
-        if ($waited > 10) {
-            kill('QUIT', $pid);
-            waitpid($pid, 0);
-            $dump = "Timeout waiting for server:";
-        }
-
-        if (waitpid($pid, WNOHANG) == $pid) {
-            $dump = "Server failed to start:"
-        }
-
-        if ($dump) {
-            open(my $fh, '<', $log_file) or warn "Failed to open log: $!";
-            my $data = eval { join "" => <$fh> };
-            confess "$dump\n$data\nAborting";
-        }
-
-        sleep 0.01;
-    }
-
-    $self->{+LOG_FILE} = $log_file;
-    $self->{+PID}      = $pid;
-}
-
-sub shell {
-    my $self = shift;
-    my ($db_name) = @_;
-    $db_name ||= 'quickdb';
-
-    my $cfg_file = $self->{+CFG_FILE};
-    system($self->{+MYSQL}, "--defaults-file=$cfg_file", $db_name);
-}
-
 sub load_sql {
     my $self = shift;
     my ($file) = @_;
@@ -317,6 +217,33 @@ sub load_sql {
         ],
         {stdin => $file},
     );
+}
+
+
+sub shell_command {
+    my $self = shift;
+    my ($db_name) = @_;
+
+    my $cfg_file = $self->{+CFG_FILE};
+    return ($self->{+MYSQL}, "--defaults-file=$cfg_file", $db_name);
+}
+
+sub start_command {
+    my $self = shift;
+
+    my $cfg_file = $self->{+CFG_FILE};
+    return ($self->{+MYSQLD}, "--defaults-file=$cfg_file");
+}
+
+sub connect_string {
+    my $self = shift;
+    my ($db_name) = @_;
+    $db_name = 'quickdb' unless defined $db_name;
+
+    my $socket = $self->{+SOCKET};
+
+    require DBD::mysql;
+    return "dbi:mysql:dbname=$db_name;mysql_socket=$socket";
 }
 
 1;

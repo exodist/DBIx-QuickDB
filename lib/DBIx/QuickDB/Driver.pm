@@ -4,22 +4,31 @@ use warnings;
 
 our $VERSION = '0.000003';
 
+use Carp qw/croak confess/;
 use File::Path qw/remove_tree/;
+use POSIX ":sys_wait_h";
+use Scalar::Util qw/blessed/;
+use Time::HiRes qw/sleep/;
 
 use DBIx::QuickDB::Util::HashBase qw{
-    -root_pid
+    -pid -root_pid -log_file
     -dir
     -_cleanup
     -autostop -autostart
     -verbose
     -log_id
+    -username
+    -password
 };
 
-use Scalar::Util qw/blessed/;
-
-use Carp qw/croak confess/;
-
 sub viable { 0 }
+
+sub socket         { confess "socket() is not implemented for the " . $_[0]->name . " driver" }
+sub load_sql       { confess "load_sql() is not implemented for the " . $_[0]->name . " driver" }
+sub bootstrap      { confess "bootstrap() is not implemented for the " . $_[0]->name . " driver" }
+sub connect_string { confess "connect_string() is not implemented for the " . $_[0]->name . " driver" }
+sub start_command  { confess "start_command() is not implemented for the " . $_[0]->name . " driver" }
+sub shell_command  { confess "shell_command() is not implemented for the " . $_[0]->name . " driver" }
 
 sub name {
     my $in = shift;
@@ -38,15 +47,11 @@ sub init {
     $self->{+ROOT_PID} = $$;
     $self->{+_CLEANUP} = delete $self->{cleanup};
 
+    $self->{+USERNAME} = '' unless defined $self->{+USERNAME};
+    $self->{+PASSWORD} = '' unless defined $self->{+PASSWORD};
+
     return;
 }
-
-sub bootstrap { confess "bootstrap() is not implemented for the " . $_[0]->name . " driver" }
-sub load_sql  { confess "load_sql() is not implemented for the " . $_[0]->name . " driver" }
-sub connect   { confess "connect() is not implemented for the " . $_[0]->name . " driver" }
-sub shell     { confess "shell() is not implemented for the " . $_[0]->name . " driver" }
-sub start     { confess "start() is not implemented for the " . $_[0]->name . " driver" }
-sub stop      { confess "stop() is not implemented for the " . $_[0]->name . " driver" }
 
 sub run_command {
     my $self = shift;
@@ -96,6 +101,93 @@ sub cleanup {
     return;
 }
 
+sub connect {
+    my $self = shift;
+    my ($db_name, %params) = @_;
+
+    %params = (AutoCommit => 1) unless @_ > 1;
+
+    my $cstring = $self->connect_string($db_name);
+
+    require DBI;
+    return DBI->connect($cstring, $self->username, $self->password, \%params);
+}
+
+sub start {
+    my $self = shift;
+
+    my $dir = $self->{+DIR};
+    my $socket = $self->socket;
+
+    return if $self->{+PID} || -S $socket;
+
+    my ($pid, $log_file) = $self->run_command([$self->start_command], {no_wait => 1});
+
+    my $start = time;
+    until (-S $socket) {
+        my $waited = time - $start;
+        my $dump = 0;
+
+        if ($waited > 10) {
+            kill('QUIT', $pid);
+            waitpid($pid, 0);
+            $dump = "Timeout waiting for server:";
+        }
+
+        if (waitpid($pid, WNOHANG) == $pid) {
+            $dump = "Server failed to start:"
+        }
+
+        if ($dump) {
+            open(my $fh, '<', $log_file) or warn "Failed to open log: $!";
+            my $data = eval { join "" => <$fh> };
+            confess "$dump\n$data\nAborting";
+        }
+
+        sleep 0.01;
+    }
+
+    $self->{+LOG_FILE} = $log_file;
+    $self->{+PID}      = $pid;
+}
+
+sub stop {
+    my $self = shift;
+
+    my $pid = $self->{+PID} or return;
+
+    local $?;
+    kill('TERM', $pid);
+    my $ret = waitpid($pid, 0);
+    my $exit = $?;
+    die "waitpid returned $ret (expected $pid)" unless $ret == $pid;
+
+    if ($exit) {
+        my $name = $self->name;
+        my $msg = "";
+        if (my $lf = $self->{+LOG_FILE}) {
+            if (open(my $fh, '<', $lf)) {
+                $msg = "\n" . join "" => <$fh>;
+            }
+            else {
+                $msg = "\nCould not open $name log file '$lf': $!";
+            }
+        }
+        warn "$name exited badly ($exit)$msg";
+    }
+
+    delete $self->{+LOG_FILE};
+    delete $self->{+PID};
+}
+
+sub shell {
+    my $self = shift;
+    my ($db_name) = @_;
+    $db_name = 'quickdb' unless defined $db_name;
+
+    system($self->shell_command($db_name));
+}
+
 sub DESTROY {
     my $self = shift;
     return unless $self->{+ROOT_PID} && $self->{+ROOT_PID} == $$;
@@ -109,6 +201,7 @@ sub DESTROY {
 1;
 
 __END__
+
 
 =pod
 

@@ -67,13 +67,7 @@ sub build_db {
         confess join "\n" => @err, "", "====================", "", "Aborting";
     }
 
-    my $inst = $driver->new(
-        dir       => $spec->{dir},
-        cleanup   => $spec->{cleanup},
-        autostart => $spec->{autostart},
-        autostop  => $spec->{autostop},
-        verbose   => $spec->{verbose},
-    );
+    my $inst = $driver->new(%$spec);
 
     $CACHE{$name} = {spec => $spec, inst => $inst} if $name && !$spec->{nocache};
 

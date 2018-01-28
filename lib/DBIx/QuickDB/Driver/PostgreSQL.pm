@@ -4,21 +4,17 @@ use warnings;
 
 our $VERSION = '0.000003';
 
-use Carp qw/confess/;
 use IPC::Cmd qw/can_run/;
-use Time::HiRes qw/sleep/;
-use POSIX ":sys_wait_h";
 
 use parent 'DBIx::QuickDB::Driver';
 
 use DBIx::QuickDB::Util::HashBase qw{
     -data_dir
-    -pid
-    -log_file
 
     -initdb -createdb -postgres -psql
 
     -config
+    -socket
 };
 
 my ($INITDB, $CREATEDB, $POSTGRES, $PSQL, $DBDPG);
@@ -94,7 +90,9 @@ sub init {
     my $self = shift;
     $self->SUPER::init();
 
-    $self->{+DATA_DIR} = $self->{+DIR} . '/data';
+    my $dir = $self->{+DIR};
+    $self->{+DATA_DIR} = "$dir/data";
+    $self->{+SOCKET} ||= "$dir/.s.PGSQL.5432";
 
     my %defaults = $self->_default_paths;
     $self->{$_} ||= $defaults{$_} for keys %defaults;
@@ -140,42 +138,15 @@ sub bootstrap {
     return;
 }
 
-sub start {
+sub connect_string {
     my $self = shift;
+    my ($db_name) = @_;
+    $db_name = 'quickdb' unless defined $db_name;
 
     my $dir = $self->{+DIR};
-    my $db_dir = $self->{+DATA_DIR};
 
-    return if $self->{+PID} || -S "$dir/.s.PGSQL.5432";
-
-    my ($pid, $log_file) = $self->run_command([$self->{+POSTGRES}, '-D', $db_dir], {no_wait => 1});
-
-    my $start = time;
-    until (-S "$dir/.s.PGSQL.5432") {
-        my $waited = time - $start;
-        my $dump = 0;
-
-        if ($waited > 10) {
-            kill('QUIT', $pid);
-            waitpid($pid, 0);
-            $dump = "Timeout waiting for server:";
-        }
-
-        if (waitpid($pid, WNOHANG) == $pid) {
-            $dump = "Server failed to start:"
-        }
-
-        if ($dump) {
-            open(my $fh, '<', $log_file) or warn "Failed to open log: $!";
-            my $data = eval { join "" => <$fh> };
-            confess "$dump\n$data\nAborting";
-        }
-
-        sleep 0.01;
-    }
-
-    $self->{+LOG_FILE} = $log_file;
-    $self->{+PID}      = $pid;
+    require DBD::Pg;
+    return "dbi:Pg:dbname=$db_name;host=$dir"
 }
 
 sub load_sql {
@@ -193,62 +164,16 @@ sub load_sql {
     ]);
 }
 
-sub stop {
-    my $self = shift;
-
-    my $pid = $self->{+PID} or return;
-
-    local $?;
-    kill('TERM', $pid);
-    my $ret = waitpid($pid, 0);
-    my $exit = $?;
-    die "waitpid returned $ret (expected $pid)" unless $ret == $pid;
-
-    if ($exit) {
-        my $msg = "";
-        if (my $lf = $self->{+LOG_FILE}) {
-            if (open(my $fh, '<', $lf)) {
-                $msg = "\n" . join "" => <$fh>;
-            }
-            else {
-                $msg = "\nCould not open postgres log file '$lf': $!";
-            }
-        }
-        warn "PostgreSQL exited badly ($exit)$msg";
-    }
-
-    delete $self->{+LOG_FILE};
-    delete $self->{+PID};
-}
-
-sub connect_string {
+sub shell_command {
     my $self = shift;
     my ($db_name) = @_;
-    $db_name = 'quickdb' unless defined $db_name;
 
-    my $dir = $self->{+DIR};
-
-    return "dbi:Pg:dbname=$db_name;host=$dir"
+    return ($self->{+PSQL}, '-h' => $self->{+DIR}, $db_name);
 }
 
-sub connect {
+sub start_command {
     my $self = shift;
-    my ($db_name, %params) = @_;
-
-    %params = (AutoCommit => 1) unless @_ > 1;
-
-    my $cstring = $self->connect_string($db_name);
-
-    require DBI;
-    return DBI->connect($cstring, "", "", \%params);
-}
-
-sub shell {
-    my $self = shift;
-    my ($db_name) = @_;
-    $db_name ||= 'quickdb';
-
-    system($self->{+PSQL}, $db_name, '-h' => $self->{+DIR});
+    return ($self->{+POSTGRES}, '-D', $self->{+DATA_DIR});
 }
 
 1;
