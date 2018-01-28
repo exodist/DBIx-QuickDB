@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Significant MySQL speed improvements
+    - Better diagnostics from all drivers
+
 0.000003  2018-01-28 12:50:32-08:00 America/Los_Angeles
 
     - Add sqlite driver
