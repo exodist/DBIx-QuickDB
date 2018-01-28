@@ -11,27 +11,25 @@ use parent 'DBIx::QuickDB::Driver';
 use DBIx::QuickDB::Util::HashBase qw{
     -data_dir -temp_dir -socket -pid_file -cfg_file
 
-    -mysql_install_db -mysqld -mysql
+    -mysqld -mysql
 
     -config
 };
 
-my ($MYSQL_INSTALL_DB, $MYSQLD, $MYSQL, $DBDMYSQL);
+my ($MYSQLD, $MYSQL, $DBDMYSQL);
 
 BEGIN {
     local $@;
 
-    $MYSQL_INSTALL_DB = can_run('mysql_install_db');
-    $MYSQLD           = can_run('mysqld');
-    $MYSQL            = can_run('mysql');
-    $DBDMYSQL         = eval { require DBD::mysql; 'DBD::mysql' };
+    $MYSQLD   = can_run('mysqld');
+    $MYSQL    = can_run('mysql');
+    $DBDMYSQL = eval { require DBD::mysql; 'DBD::mysql' };
 }
 
 sub _default_paths {
     return (
-        mysql_install_db => $MYSQL_INSTALL_DB,
-        mysqld           => $MYSQLD,
-        mysql            => $MYSQL,
+        mysqld => $MYSQLD,
+        mysql  => $MYSQL,
     );
 }
 
@@ -66,6 +64,7 @@ sub _default_config {
             'key_buffer_size'         => '20M',
             'max_connections'         => '100',
             'server-id'               => '1',
+            'skip-grant-tables'       => '',
             'skip-external-locking'   => '',
             'skip-networking'         => '',
             'skip_name_resolve'       => '1',
@@ -101,11 +100,9 @@ sub viable {
     push @bad => "'DBD::mysql' module could not be loaded, needed for everything" unless $DBDMYSQL;
 
     if ($spec->{bootstrap}) {
-        push @bad => "'mysql_install_db' command is missing, needed for bootstrap" unless $check{mysql_install_db} && -x $check{mysql_install_db};
-        push @bad => "'mysqld' command is missing, needed for bootstrap" unless $spec->{autostart} || ($check{mysqld} && -x $check{mysqld});
+        push @bad => "'mysqld' command is missing, needed for bootstrap" unless $check{mysqld} && -x $check{mysqld};
     }
-
-    if ($spec->{autostart}) {
+    elsif ($spec->{autostart}) {
         push @bad => "'mysqld' command is missing, needed for autostart" unless $check{mysqld} && -x $check{mysqld};
     }
 
@@ -152,14 +149,9 @@ sub init {
     }
 }
 
-sub bootstrap {
+sub write_config {
     my $self = shift;
-
-    my $data_dir = $self->{+DATA_DIR};
-    my $temp_dir = $self->{+TEMP_DIR};
-
-    mkdir($data_dir) or die "Could not create data dir: $!";
-    mkdir($temp_dir) or die "Could not create temp dir: $!";
+    my (%params) = @_;
 
     my $cfg_file = $self->{+CFG_FILE};
     open(my $cfh, '>', $cfg_file) or die "Could not open config file: $!";
@@ -167,10 +159,14 @@ sub bootstrap {
     for my $section (sort keys %$conf) {
         my $sconf = $conf->{$section} or next;
 
+        $sconf = { %$sconf, %{$params{add}} } if $params{add};
+
         print $cfh "[$section]\n";
         for my $key (sort keys %$sconf) {
             my $val = $sconf->{$key};
             next unless defined $val;
+
+            next if $params{skip} && ($key =~ $params{skip} || $val =~ $params{skip});
 
             if (length($val)) {
                 print $cfh "$key = $val\n";
@@ -184,20 +180,30 @@ sub bootstrap {
     }
     close($cfh);
 
-    my $base = $self->{+MYSQL_INSTALL_DB};
-    $base =~ s{/bin/.*$}{}g;
-    $self->run_command([$self->{+MYSQL_INSTALL_DB}, "--defaults-file=$cfg_file", "--basedir=$base"]);
+    return;
+}
 
-    $self->start;
+sub bootstrap {
+    my $self = shift;
 
-    for my $try ( 1 .. 5 ) {
-        my $dbh = $self->connect('');
-        $dbh->do('CREATE DATABASE quickdb') and last;
-        die $dbh->errstr if $try == 5;
-        sleep 1;
-    }
+    my $data_dir = $self->{+DATA_DIR};
+    my $temp_dir = $self->{+TEMP_DIR};
 
-    $self->stop unless $self->{+AUTOSTART};
+    mkdir($data_dir) or die "Could not create data dir: $!";
+    mkdir($temp_dir) or die "Could not create temp dir: $!";
+
+
+    my $init_file = "$self->{+DIR}/init.sql";
+    open(my $init, '>', $init_file) or die "Could not open init file: $!";
+    print $init "CREATE DATABASE quickdb;\n";
+    close($init);
+
+    # Bootstrap is much faster without InnoDB, we will turn InnoDB back on later, and things will use it.
+    $self->write_config(skip => qr/innodb/i, add => {'default-storage-engine' => 'MyISAM'});
+    $self->run_command([$self->start_command, '--bootstrap', '--innodb=off'], {stdin => $init_file});
+
+    # Turn InnoDB back on
+    $self->write_config();
 
     return;
 }
@@ -232,7 +238,7 @@ sub start_command {
     my $self = shift;
 
     my $cfg_file = $self->{+CFG_FILE};
-    return ($self->{+MYSQLD}, "--defaults-file=$cfg_file");
+    return ($self->{+MYSQLD}, "--defaults-file=$cfg_file", '--skip-grant-tables');
 }
 
 sub connect_string {

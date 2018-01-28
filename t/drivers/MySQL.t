@@ -38,10 +38,7 @@ subtest cleanup => sub {
 };
 
 subtest viable => sub {
-    my ($v, $why) = $CLASS->viable({mysql_install_db => 'a fake path', bootstrap => 1});
-    ok(!$v, "Not viable without a valid mysql_install_db");
-
-    ($v, $why) = $CLASS->viable({mysqld => 'a fake path', bootstrap => 1});
+    my ($v, $why) = $CLASS->viable({mysqld => 'a fake path', bootstrap => 1});
     ok(!$v, "Not viable without a valid mysqld");
 
     ($v, $why) = $CLASS->viable({mysqld => 'a fake path', autostart => 1});
