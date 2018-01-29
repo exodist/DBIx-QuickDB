@@ -2,7 +2,7 @@ package DBIx::QuickDB::Driver::MySQL;
 use strict;
 use warnings;
 
-our $VERSION = '0.000004';
+our $VERSION = '0.000005';
 
 use IPC::Cmd qw/can_run/;
 
