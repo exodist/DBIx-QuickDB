@@ -1,7 +1,7 @@
 use Test2::V0 -target => 'DBIx::QuickDB';
 use Test2::Tools::QuickDB;
 
-my $driver = skipall_unless_can_db(['PostgreSQL', 'SQLite', 'MySQL']);
+my $driver = skipall_unless_can_db(drivers => ['PostgreSQL', 'SQLite', 'MySQL']);
 diag("Using driver '$driver'");
 
 $CLASS->import('db_a' => {driver => $driver});

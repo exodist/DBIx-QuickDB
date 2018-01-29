@@ -11,14 +11,14 @@ use Scalar::Util qw/blessed/;
 use Time::HiRes qw/sleep/;
 
 use DBIx::QuickDB::Util::HashBase qw{
-    -pid -root_pid -log_file
+    pid -root_pid log_file
     -dir
     -_cleanup
     -autostop -autostart
-    -verbose
-    -log_id
-    -username
-    -password
+    verbose
+    -_log_id
+    username
+    password
 };
 
 sub viable { (0, "socket() is not implemented for the " . $_[0]->name . " driver") }
@@ -60,7 +60,7 @@ sub run_command {
     croak "Could not fork" unless defined $pid;
 
     my $no_log = $self->{+VERBOSE} || $params->{no_log} || $ENV{DB_VERBOSE};
-    my $log_file = $no_log ? undef : $self->{+DIR} . "/cmd-log-" . $self->{+LOG_ID}++;
+    my $log_file = $no_log ? undef : $self->{+DIR} . "/cmd-log-" . $self->{+_LOG_ID}++;
 
     if ($pid) {
         return ($pid, $log_file) if $params->{no_wait};
@@ -94,6 +94,8 @@ sub run_command {
 
     exec(@$cmd);
 }
+
+sub should_cleanup { shift->{+_CLEANUP} }
 
 sub cleanup {
     my $self = shift;
@@ -150,6 +152,8 @@ sub start {
 
     $self->{+LOG_FILE} = $log_file;
     $self->{+PID}      = $pid;
+
+    return;
 }
 
 sub stop {
@@ -179,6 +183,8 @@ sub stop {
 
     delete $self->{+LOG_FILE};
     delete $self->{+PID};
+
+    return;
 }
 
 sub shell {
@@ -226,7 +232,7 @@ Base class for DBIx::QuickDB drivers.
 
     use DBIx::QuickDB::Util::HashBase qw{ ... };
 
-    sub viable { .. }
+    sub viable { ... ? 1 : (0, "This driver will not work because ...") }
 
     sub init {
         my $self = shift;
@@ -236,18 +242,208 @@ Base class for DBIx::QuickDB drivers.
         ...
     }
 
-    sub bootstrap { ... }
-    sub load_sql  { ... }
-    sub connect   { ... }
-    sub shell     { ... }
-    sub start     { ... }
-    sub stop      { ... }
+    # Methods most drivers should implement
+
+    sub socket         { ... }
+    sub load_sql       { ... }
+    sub bootstrap      { ... }
+    sub connect_string { ... }
+    sub start_command  { ... }
+    sub shell_command  { ... }
 
     1;
 
-=head1 TODO - MORE DOCS
+=head1 METHODS PROVIDED HERE
 
-This is a VERY alpha release, more docs to come, API may change completely.
+=item $bool = $db->autostart
+
+True if this db was created with 'autostart' requested.
+
+=item $bool = $db->autostop
+
+True if this db was created with 'autostop' requested.
+
+=item $db->cleanup
+
+This will completely delete the database directory. B<BE CAREFUL>.
+
+=item $dbh = $db->connect()
+
+=item $dbh = $db->connect($db_name)
+
+=item $dbh = $db->connect($db_name, %connect_params)
+
+Connect to the database server. If no C<%connect_params> are specified then
+C<< (AutoCommit => 1) >> will be used.
+
+Behavior for an undef (or omitted) C<$db_name> is driver specific.
+
+This will use the username in C<username()> and the password in C<password()>.
+The connection string is defined by C<connect_string()> which must be overriden
+in each driver subclass.
+
+=item $path = $db->dir
+
+Get the path to the database directory.
+
+=item $db->init
+
+This is called automatically during object construction. You B<SHOULD NOT> call
+this directly, except in a subclass which overrides C<init()>.
+
+=item $path = $db->log_file
+
+If the database is running this will point to the log file. If the database is
+not yet running, or has been stopped, this will be undef.
+
+=item $driver_name = $db->name
+
+Get the short name of the driver ('DBIx::QuickDB::Driver::' has been stripped).
+
+=item $pw = $db->password
+
+=item $db->password($pw)
+
+Get/Set the password to use when calling C<connect()>.
+
+=item $pid = $db->pid
+
+=item $db->pid($pid)
+
+If the server is running then this will have the pid. If the server is stopped
+this will be undef.
+
+B<NOTE:> This will also be undef if the server is running independantly of this
+object, if the server is running, but this is undef, it means another
+object/process is in control of it.
+
+=item $pid = $db->root_pid
+
+This should contain the original pid of the process in which the instance was
+created.
+
+=item $db->run_command(\@cmd)
+
+=item $db->run_command(\@cmd, \%params)
+
+=item ($pid, $logfile) = $db->run_command(\@cmd, {no_wait => 1})
+
+This will execute the command specified in C<@cmd>. If the command fails an
+exception will be thrown. By default all output will be captured into log files
+and ignored. If the command fails the output will be attached to the exception.
+Normally this will block until the command exits. if C<verbose()> is set then
+all output is always shown.
+
+Normally there is no return value. If the 'no_wait' param is specified then
+the command will be run non-blocking and the pid and log file will be returned.
+
+Allowed params:
+
+=over 4
+
+=item no_log => bool
+
+Show the output in realtime, do not redirect it.
+
+=item no_wait => bool
+
+Do not block, instead return the pid and log file to use later.
+
+=item stdin => path_to_file
+
+Run the command with the specified file is input.
+
+=back
+
+=item $db->shell
+
+Launch a database shell. This depends on the C<shell_command> method, which
+drivers should provide. Not all driver may support this.
+
+=item $bool = $db->should_cleanup
+
+True if the instance was created with the 'cleanup' specification. If this is
+true then the database directory will be deleted when the program ends.
+
+=item $db->start
+
+Start the database. Most drivers will make this a no-op if the db is already
+running.
+
+=item $db->stop
+
+Stop the database. Most drivers will make this a no-op if the db is already
+stopped.
+
+=item $user = $db->username
+
+=item $db->username($user)
+
+Get/set the username to use in C<connect()>.
+
+=item $bool = $db->verbose
+
+=item $db->verbose($bool)
+
+If this is true then all output from C<run_command> will be shown at all times.
+
+=item $db->DESTROY
+
+Used to stop the server and delete the data dir (if desired) when the program
+exits.
+
+=back
+
+=head1 METHODS SUBCLASSES SHOULD PROVIDE
+
+=over
+
+=item ($bool, $why) = $db->viable()
+
+=item ($bool, $why) = $db->viable(\%spec)
+
+This should check if it is possible to launch this db type on the current
+system with the given spec.
+
+See L<DBIx::QuickDB/"SPEC HASH"> for what might be in C<%spec>.
+
+The first return value is a simple boolean, true if the driver is viable, false
+if it is not. The second value should be an explanation as to why the driver is
+not viable (in cases where it is not).
+
+=item $socket = $db->socket()
+
+Unix Socket used to communicate with the db. If the db type does not use
+sockets (such as SQLite) then this can be skipped. B<NOTE:> If you skip this
+you will need to override C<stop()> and C<start()> to account for it. See
+L<DBIx::QuickDB::Driver::SQLite> for an example.
+
+=item $db->load_sql($db_name, $file)
+
+Load the specified sql file into the specified db. It is possible that
+C<$db_name> will be undef in some drivers.
+
+=item $db->bootstrap()
+
+Initialize the database server and create the 'quickdb' database.
+
+=item $string = $db->connect_string()
+
+=item $string $db->connect_string($db_name)
+
+String to pass into C<< DBI->connect >>.
+
+Example: C<"dbi:Pg:dbname=$db_name;host=$socket">
+
+=item @cmd = $db->start_command()
+
+Command used to start the server.
+
+=item @cmd = $db->shell_command()
+
+Command used to launch a shell into the database.
+
+=back
 
 =head1 SOURCE
 

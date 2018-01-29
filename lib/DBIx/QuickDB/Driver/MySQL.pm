@@ -272,10 +272,6 @@ MySQL driver for L<DBIx::QuickDB>.
 
 See L<DBIx::QuickDB>.
 
-=head1 TODO - MORE DOCS
-
-This is a VERY alpha release, more docs to come, API may change completely.
-
 =head1 SOURCE
 
 The source code repository for DBIx-QuickDB can be found at

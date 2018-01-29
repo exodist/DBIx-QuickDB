@@ -13,14 +13,14 @@ requires "Test::More" => "1.302120";
 requires "Time::HiRes" => "0";
 requires "parent" => "0";
 requires "perl" => "5.008001";
-suggests "DBD::Pg" => "v3.5.0";
-suggests "DBD::mysql" => "4.00";
 
 on 'configure' => sub {
   requires "ExtUtils::MakeMaker" => "0";
 };
 
 on 'develop' => sub {
+  requires "DBD::Pg" => "v3.5.0";
   requires "DBD::SQLite" => "1.44";
+  requires "DBD::mysql" => "4.00";
   requires "Test::Pod" => "1.41";
 };

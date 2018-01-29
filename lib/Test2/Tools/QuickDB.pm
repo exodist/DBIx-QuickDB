@@ -4,6 +4,7 @@ use warnings;
 
 our $VERSION = '0.000004';
 
+use Carp qw/croak/;
 use Test2::API qw/context/;
 use DBIx::QuickDB();
 
@@ -12,18 +13,38 @@ use Importer Importer => 'import';
 our @EXPORT = qw/get_db_or_skipall get_db skipall_unless_can_db/;
 
 sub skipall_unless_can_db {
-    my ($in, $spec) = @_;
-
-    $spec ||= {bootstrap => 1, autostart => 1, load_sql => 1};
+    my %spec;
+    if (@_ == 1) {
+        my $type = ref($_[0]) || '';
+        if (!$type) {
+            $spec{driver} = $_[0];
+        }
+        elsif ($type eq 'ARRAY') {
+            $spec{drivers} = $_[0];
+        }
+        elsif ($type eq 'HASH') {
+            %spec = %{$_[0]};
+        }
+        else {
+            croak "Invalid Argument: $_[0]";
+        }
+    }
+    else {
+        %spec = @_;
+    }
 
     my $ctx = context();
 
-    my $drivers = defined($in) ? ref($in) ? $in : [$in] : [DBIx::QuickDB->plugins];
+    $spec{bootstrap} = 1 unless defined $spec{bootstrap};
+    $spec{autostart} = 1 unless defined $spec{autostart};
+    $spec{load_sql}  = 1 unless defined $spec{load_sql};
+
+    my $drivers = $spec{driver} ? [$spec{driver}] : $spec{drivers} || [DBIx::QuickDB->plugins];
 
     my $ok = 0;
     for my $driver (@$drivers) {
         next unless defined $driver;
-        my ($v, $fqn, $why) = DBIx::QuickDB->check_driver($driver, $spec);
+        my ($v, $fqn, $why) = DBIx::QuickDB->check_driver($driver, \%spec);
         next unless $v;
         $ok = $fqn;
         last;
@@ -52,37 +73,13 @@ sub get_db {
 }
 
 sub get_db_or_skipall {
-    my @args = @_;
+    my $name = ref($_[0]) ? undef : shift(@_);
+    my $spec = shift(@_) || {};
 
     my $ctx = context();
 
-    skipall_unless_can_db(@args);
-
-    my $db;
-    my $ok = eval { $db = DBIx::QuickDB->build_db(@args) };
-    my $err = $@;
-
-    unless($ok) {
-        if ($err =~ m/(Could not find a viable driver)/) {
-            my $name = shift(@_) unless ref($_[0]);
-            my $spec = shift(@_) || {};
-
-            my $msg = $1;
-            if (my $driver = $spec->{driver}) {
-                $msg .= " ($driver)";
-            }
-            elsif (my $drivers = $spec->{drivers}) {
-                $msg .= " (" . join(", " => @$drivers) . ")";
-            }
-            else {
-                $msg .= " (ANY)";
-            }
-            $ctx->plan(0, SKIP => $msg);
-            $ctx->release;
-            return;
-        }
-        die $err;
-    }
+    skipall_unless_can_db(%$spec);
+    my $db = get_db($name ? $name : (), $spec);
 
     $ctx->release;
 
@@ -110,15 +107,67 @@ This is a test library build around DBIx::QuickDB.
     use Test2::V0 -target => DBIx::QuickDB::Driver::PostgreSQL;
     use Test2::Tools::QuickDB;
 
-    skipall_unless_can_db('PostgreSQL');
+    skipall_unless_can_db(driver => 'PostgreSQL');
 
-    my $db = get_db db => {driver => 'PostgreSQL', load_sql => 't/schema/postgresql.sql'};
+    my $db = get_db(driver => 'PostgreSQL', load_sql => 't/schema/postgresql.sql'});
 
     ...
 
-=head1 TODO - MORE DOCS
+=head1 EXPORTS
 
-This is a VERY alpha release, more docs to come, API may change completely.
+=over 4
+
+=item $driver = skipall_unless_can_db('MyDriver')
+
+=item $driver = skipall_unless_can_db(['MyDriver', 'OurDriver'])
+
+=item $driver = skipall_unless_can_db(%spec)
+
+This will look for a usable driver. If no usable driver is found, this will
+issue a skip_all to skip the current test or subtest. If at least one suable
+driver is found then the first one found will be returned.
+
+If you pass in 1 argument it should either be a driver to try, or an arrayref
+of drivers to try.
+
+If you passing multiple argument then you should follow the specifications in
+L<DBIx::QuickDB/"SPEC HASH">.
+
+Feel free to ignore the return value.
+
+=item $db = get_db
+
+=item $db = get_db($name)
+
+=item $db = get_db(\%spec)
+
+=item $db = get_db($name, \%spec)
+
+=item $db = get_db $name => \%spec
+
+Get a database.
+
+With no arguments it will give you an instance of the first working driver it
+finds.
+
+You can provide a name for the db, the same instance can then be retrieved
+anywhere B<GLOBALLY> using the same name.
+
+You can provide a spec hashref which can contain any arguments documented in
+L<DBIx::QuickDB/"SPEC HASH">.
+
+=item $db = get_db_or_skipall $name => \%spec
+
+=item $db = get_db_or_skipall($name, \%spec)
+
+=item $db = get_db_or_skipall($name)
+
+=item $db = get_db_or_skipall(\%spec)
+
+This combines C<get_db()> and C<skipall_unless_can_db()>. The arguments
+supported are identical to C<get_db()>.
+
+=back
 
 =head1 SOURCE
 

@@ -1,7 +1,7 @@
 use Test2::V0 -target => DBIx::QuickDB::Driver::SQLite;
 use Test2::Tools::QuickDB;
 
-skipall_unless_can_db('SQLite');
+skipall_unless_can_db(driver => 'SQLite');
 
 subtest use_it => sub {
     my $db = get_db db => {driver => 'SQLite', load_sql => [quickdb => 't/schema/sqlite.sql']};
