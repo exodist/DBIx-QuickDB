@@ -1,5 +1,6 @@
 {{$NEXT}}
 
+    - More complete testing
     - Significant MySQL speed improvements
     - Better diagnostics from all drivers
 

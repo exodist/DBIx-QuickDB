@@ -9,8 +9,6 @@ use List::Util qw/first/;
 use File::Temp qw/tempdir/;
 use Module::Pluggable search_path => 'DBIx::QuickDB::Driver', max_depth => 4, require => 0;
 
-require constant;
-
 my %CACHE;
 
 sub import {
@@ -78,7 +76,7 @@ sub build_db {
     #   postgresql => [db => $file, $db => $file],
     # }
     if (my $sql = $spec->{load_sql}) {
-        $sql = $sql->{$driver} if ref($sql) eq 'HASH';
+        $sql = $sql->{$driver->name} if ref($sql) eq 'HASH';
         for (my $i = 0; $i < @$sql; $i += 2) {
             my ($db, $file) = @{$sql}[$i, $i + 1];
             $inst->load_sql($db => $file);
@@ -91,15 +89,21 @@ sub build_db {
 sub check_driver {
     my $class = shift;
     my ($d, $spec) = @_;
+    confess "oops" unless $d;
 
     $d = "DBIx::QuickDB::Driver::$d" unless $d =~ s/^\+// || $d =~ m/^DBIx::QuickDB::Driver::/;
 
     my $f = $d;
     $f =~ s{::}{/}g;
     $f .= ".pm";
-    require $f;
 
-    my ($v, $why) = $d->viable($spec);
+    my ($v, $why);
+    if (eval { require $f }) {
+        ($v, $why) = $d->viable($spec);
+    }
+    else {
+        ($v, $why) = (0, $d, "Could not load $d");
+    }
 
     return ($v, $d, $why);
 }

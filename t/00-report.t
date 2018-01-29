@@ -25,9 +25,8 @@ print STDERR "\n";
             psql     => '-V',
         },
         MySQL => {
-            mysql_install_db => '',
-            mysqld           => '-V',
-            mysql            => '-V',
+            mysqld => '-V',
+            mysql  => '-V',
         },
     );
 

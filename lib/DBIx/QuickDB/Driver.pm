@@ -80,7 +80,7 @@ sub run_command {
     }
 
     unless ($no_log) {
-        open(my $log, '>', $log_file) or die "Could not open log file: $!";
+        open(my $log, '>', $log_file) or die "Could not open log file ($log_file): $!";
         close(STDOUT);
         open(STDOUT, '>&', $log);
         close(STDERR);
@@ -89,7 +89,7 @@ sub run_command {
 
     if (my $file = $params->{stdin}) {
         close(STDIN);
-        open(STDIN, '<', $file) or die "Could not open new STDIN: $!";
+        open(STDIN, '<', $file) or die "Could not open new STDIN ($file): $!";
     }
 
     exec(@$cmd);
