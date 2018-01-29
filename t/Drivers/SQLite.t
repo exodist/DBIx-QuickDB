@@ -1,6 +1,10 @@
 use Test2::V0 -target => DBIx::QuickDB::Driver::SQLite;
 use Test2::Tools::QuickDB;
 
+# Contaminate the ENV vars to make sure things work even when these are all
+# set.
+BEGIN { $ENV{$_} = 'fake' for qw{DBI_USER DBI_PASS DBI_DSN} }
+
 skipall_unless_can_db(driver => 'SQLite');
 
 subtest use_it => sub {
@@ -39,5 +43,7 @@ subtest viable => sub {
     my ($v, $why) = $CLASS->viable({sqlite => 'a fake path', load_sql => 1});
     ok(!$v, "Not viable without a valid sqlite3");
 };
+
+ok(!(grep { $ENV{$_} ne 'fake' } qw/DBI_USER DBI_PASS DBI_DSN/), "All DBI env vars were restored");
 
 done_testing;

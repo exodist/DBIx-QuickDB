@@ -26,6 +26,23 @@ BEGIN {
     $DBDMYSQL = eval { require DBD::mysql; 'DBD::mysql' };
 }
 
+sub list_env_vars {
+    my $self = shift;
+    return (
+        $self->SUPER::list_env_vars(),
+        qw{
+            LIBMYSQL_ENABLE_CLEARTEXT_PLUGIN LIBMYSQL_PLUGINS
+            LIBMYSQL_PLUGIN_DIR MYSQLX_TCP_PORT MYSQLX_UNIX_PORT MYSQL_DEBUG
+            MYSQL_GROUP_SUFFIX MYSQL_HISTFILE MYSQL_HISTIGNORE MYSQL_HOME
+            MYSQL_HOST MYSQL_OPENSSL_UDF_DH_BITS_THRESHOLD
+            MYSQL_OPENSSL_UDF_DSA_BITS_THRESHOLD
+            MYSQL_OPENSSL_UDF_RSA_BITS_THRESHOLD MYSQL_PS1 MYSQL_PWD
+            MYSQL_SERVER_PREPARE MYSQL_TCP_PORT MYSQL_TEST_LOGIN_FILE
+            MYSQL_TEST_TRACE_CRASH MYSQL_TEST_TRACE_DEBUG MYSQL_UNIX_PORT
+        }
+    );
+}
+
 sub _default_paths {
     return (
         mysqld => $MYSQLD,

@@ -1,6 +1,22 @@
 use Test2::V0 -target => DBIx::QuickDB::Driver::PostgreSQL;
 use Test2::Tools::QuickDB;
 
+my @ENV_VARS;
+
+# Contaminate the ENV vars to make sure things work even when these are all
+# set.
+BEGIN {
+    @ENV_VARS = qw{
+        DBI_USER DBI_PASS DBI_DSN
+        PGAPPNAME PGCLIENTENCODING PGCONNECT_TIMEOUT PGDATABASE PGDATESTYLE
+        PGGEQO PGGSSLIB PGHOST PGHOSTADDR PGKRBSRVNAME PGLOCALEDIR PGOPTIONS
+        PGPASSFILE PGPASSWORD PGPORT PGREQUIREPEER PGREQUIRESSL PGSERVICE
+        PGSERVICEFILE PGSSLCERT PGSSLCOMPRESSION PGSSLCRL PGSSLKEY PGSSLMODE
+        PGSSLROOTCERT PGSYSCONFDIR PGTARGETSESSIONATTRS PGTZ PGUSER
+    };
+    $ENV{$_} = 'fake' for @ENV_VARS;
+}
+
 skipall_unless_can_db('PostgreSQL');
 
 subtest use_it => sub {
@@ -50,5 +66,7 @@ subtest viable => sub {
     ($v, $why) = $CLASS->viable({psql => 'a fake path', load_sql => 1});
     ok(!$v, "Not viable without a valid psql");
 };
+
+ok(!(grep { $ENV{$_} ne 'fake' } @ENV_VARS), "All DBI/driver specific env vars were restored");
 
 done_testing;

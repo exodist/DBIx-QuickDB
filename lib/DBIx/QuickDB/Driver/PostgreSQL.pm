@@ -29,6 +29,21 @@ BEGIN {
     $DBDPG    = eval { require DBD::Pg; 'DBD::Pg'};
 }
 
+sub list_env_vars {
+    my $self = shift;
+    return (
+        $self->SUPER::list_env_vars(),
+        qw{
+            PGAPPNAME PGCLIENTENCODING PGCONNECT_TIMEOUT PGDATABASE PGDATESTYLE
+            PGGEQO PGGSSLIB PGHOST PGHOSTADDR PGKRBSRVNAME PGLOCALEDIR
+            PGOPTIONS PGPASSFILE PGPASSWORD PGPORT PGREQUIREPEER PGREQUIRESSL
+            PGSERVICE PGSERVICEFILE PGSSLCERT PGSSLCOMPRESSION PGSSLCRL
+            PGSSLKEY PGSSLMODE PGSSLROOTCERT PGSYSCONFDIR PGTARGETSESSIONATTRS
+            PGTZ PGUSER
+        }
+    );
+}
+
 sub _default_paths {
     return (
         initdb   => $INITDB,

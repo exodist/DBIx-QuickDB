@@ -19,6 +19,7 @@ use DBIx::QuickDB::Util::HashBase qw{
     -_log_id
     username
     password
+    env_vars
 };
 
 sub viable { (0, "socket() is not implemented for the " . $_[0]->name . " driver") }
@@ -29,6 +30,61 @@ sub bootstrap      { confess "bootstrap() is not implemented for the " . $_[0]->
 sub connect_string { confess "connect_string() is not implemented for the " . $_[0]->name . " driver" }
 sub start_command  { confess "start_command() is not implemented for the " . $_[0]->name . " driver" }
 sub shell_command  { confess "shell_command() is not implemented for the " . $_[0]->name . " driver" }
+
+sub list_env_vars { qw/DBI_USER DBI_PASS DBI_DSN/ }
+
+sub do_in_env {
+    my $self = shift;
+    my ($code) = @_;
+
+    my $old = $self->mask_env_vars;
+
+    my $ok = eval { $code->(); 1 };
+    my $err = $@;
+
+    $self->unmask_env_vars($old);
+
+    die $err unless $ok;
+
+    return;
+}
+
+sub mask_env_vars {
+    my $self = shift;
+
+    my %old;
+
+    for my $var ($self->list_env_vars) {
+        next unless defined $ENV{$var};
+        $old{$var} = delete $ENV{$var};
+    }
+
+    my $env_vars = $self->env_vars || {};
+    for my $var (keys %$env_vars) {
+        $old{$var} = delete $ENV{$var} unless defined $old{$var};
+        $ENV{$var} = $env_vars->{$var};
+    }
+
+    return \%old;
+}
+
+sub unmask_env_vars {
+    my $self = shift;
+    my ($old) = @_;
+
+    for my $var (keys %$old) {
+        my $val = $old->{$var};
+
+        if (defined $val) {
+            $ENV{$var} = $val;
+        }
+        else {
+            delete $ENV{$var};
+        }
+    }
+
+    return;
+}
 
 sub name {
     my $in = shift;
@@ -50,17 +106,20 @@ sub init {
     $self->{+USERNAME} = '' unless defined $self->{+USERNAME};
     $self->{+PASSWORD} = '' unless defined $self->{+PASSWORD};
 
+    $self->{+ENV_VARS} ||= {};
+
     return;
 }
 
 sub run_command {
     my $self = shift;
     my ($cmd, $params) = @_;
-    my $pid = fork();
-    croak "Could not fork" unless defined $pid;
 
     my $no_log = $self->{+VERBOSE} || $params->{no_log} || $ENV{DB_VERBOSE};
     my $log_file = $no_log ? undef : $self->{+DIR} . "/cmd-log-" . $self->{+_LOG_ID}++;
+
+    my $pid = fork();
+    croak "Could not fork" unless defined $pid;
 
     if ($pid) {
         return ($pid, $log_file) if $params->{no_wait};
@@ -78,6 +137,8 @@ sub run_command {
         }
         croak "Failed to run command '" . join(' ' => @$cmd) . "' ($exit)\n$log";
     }
+
+    $self->mask_env_vars;
 
     unless ($no_log) {
         open(my $log, '>', $log_file) or die "Could not open log file ($log_file): $!";
@@ -109,10 +170,16 @@ sub connect {
 
     %params = (AutoCommit => 1) unless @_ > 1;
 
-    my $cstring = $self->connect_string($db_name);
+    my $dbh;
+    $self->do_in_env(
+        sub {
+            my $cstring = $self->connect_string($db_name);
+            require DBI;
+            $dbh = DBI->connect($cstring, $self->username, $self->password, \%params);
+        }
+    );
 
-    require DBI;
-    return DBI->connect($cstring, $self->username, $self->password, \%params);
+    return $dbh;
 }
 
 sub start {
@@ -282,6 +349,10 @@ This will use the username in C<username()> and the password in C<password()>.
 The connection string is defined by C<connect_string()> which must be overriden
 in each driver subclass.
 
+B<NOTE:> connect will hide all DBI and driver specific environment variables
+when it establishes a connection. If you want any environment variables to be
+used you must set them in the C<< $db->env_vars() >> hashref.
+
 =item $path = $db->dir
 
 Get the path to the database directory.
@@ -337,6 +408,10 @@ all output is always shown.
 Normally there is no return value. If the 'no_wait' param is specified then
 the command will be run non-blocking and the pid and log file will be returned.
 
+B<NOTE:> C<run_command()> will clear any DBI and driver specific environment
+variables before running any commands. If you want any of the vars to be set
+then you must set them in the C<< $db->env_vars() >> hashref.
+
 Allowed params:
 
 =over 4
@@ -387,10 +462,75 @@ Get/set the username to use in C<connect()>.
 
 If this is true then all output from C<run_command> will be shown at all times.
 
+
 =item $db->DESTROY
 
 Used to stop the server and delete the data dir (if desired) when the program
 exits.
+
+=back
+
+=head1 ENVIRONMENT VARIABLE HANDLING
+
+All DBI and driver specific environment variables will be hidden Whenever a
+driver uses C<run_command()> or when the C<connect()> method is called. This is
+to prevent you from accidentally connecting to a real/production database
+unintentionally.
+
+If there are DBI or driver specific env vars you want to be honored you must
+add them to the hashref returned by C<< $db->env_vars >>. Any vars set in the
+C<env_vars> hashref will be set during C<connect()> and C<run_command()>.
+
+=head2 ENVIRONMENT VARIABLE METHODS
+
+=over 4
+
+=item $hashref = $db->env_vars()
+
+Get the hashref of env vars to set whenever C<run_command()>, C<connect()>,
+C<do_in_env()>, or C<mask_env_vars()> are called.
+
+You cannot replace te hashref, but you are free to add/remove keys.
+
+=item @vars = $db->list_env_vars
+
+This will return a list of all DBI and driver-specific environment variables.
+This is just a list of variable names, not their values.
+
+The base class provides the following list, drivers may add more:
+
+=over 4
+
+=item DBI_USER
+
+=item DBI_PASS
+
+=item DBI_DSN
+
+=back
+
+=item $db->do_in_env(sub { ... })
+
+This will execute the provided codeblock with the environment variables masked,
+and any vars listed in C<env_vars()> will be set. Once the codeblock is
+complete the old environment vars will be unmaskd, even if an exception is
+thrown.
+
+B<NOTE:> The return value of the codeblock is ignored.
+
+=item $old = $db->mask_env_vars
+
+=item $db->unmask_env_vars($old)
+
+These methods are used to mask/unmask DBI and driver specific environment
+variables.
+
+The first method will completely clear any DBI/driver environment variables,
+then apply any variables in the C<env_vars()> hash. The value returned is a
+hashref needed to unmask/restore the original environment variables later.
+
+The second method will unmask/restore the original environment variables using
+the hashref returned by the first.
 
 =back
 
