@@ -30,10 +30,6 @@ sub viable {
     my @bad;
     push @bad => "'DBD::SQLite' module could not be loaded, needed for everything" unless $DBDSQLITE;
 
-    if ($spec->{load_sql}) {
-        push @bad => "'sqlite3' command is missing, needed for load_sql" unless $check{sqlite} && -x $check{sqlite};
-    }
-
     return (1, undef) unless @bad;
     return (0, join "\n" => @bad);
 }
@@ -68,17 +64,13 @@ sub load_sql {
     my $self = shift;
     my ($db_name, $file) = @_;
 
-    my $dir = $self->{+DIR};
-    my $path = "$dir/$db_name";
+    my $dbh = $self->connect($db_name, sqlite_allow_multiple_statements => 1, RaiseError => 1, AutoCommit => 1);
 
-    $self->run_command(
-        [
-            $self->{+SQLITE},
-            '-bail',
-            $path
-        ],
-        {stdin => $file},
-    );
+    open(my $fh, '<', $file) or die "Could not open file '$file': $!";
+    my $sql = join "" => <$fh>;
+    close($fh);
+
+    $dbh->do($sql) or die $dbh->errstr;
 }
 
 sub shell_command {

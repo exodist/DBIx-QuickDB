@@ -39,11 +39,6 @@ subtest cleanup => sub {
     ok(!-d $dir, "Cleaned up the dir when done");
 };
 
-subtest viable => sub {
-    my ($v, $why) = $CLASS->viable({sqlite => 'a fake path', load_sql => 1});
-    ok(!$v, "Not viable without a valid sqlite3");
-};
-
 ok(!(grep { $ENV{$_} ne 'fake' } qw/DBI_USER DBI_PASS DBI_DSN/), "All DBI env vars were restored");
 
 done_testing;

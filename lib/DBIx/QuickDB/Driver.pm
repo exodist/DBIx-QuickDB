@@ -168,7 +168,7 @@ sub connect {
     my $self = shift;
     my ($db_name, %params) = @_;
 
-    %params = (AutoCommit => 1) unless @_ > 1;
+    %params = (AutoCommit => 1, RaiseError => 1) unless @_ > 1;
 
     my $dbh;
     $self->do_in_env(
