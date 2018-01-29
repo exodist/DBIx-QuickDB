@@ -15,6 +15,7 @@ use DBIx::QuickDB::Util::HashBase qw{
 
     -config
     -socket
+    -port
 };
 
 my ($INITDB, $CREATEDB, $POSTGRES, $PSQL, $DBDPG);
@@ -67,6 +68,7 @@ sub _default_config {
         max_connections            => "100",
         shared_buffers             => "128MB",
         unix_socket_directories    => "'$self->{+DIR}'",
+        port                       => $self->{+PORT},
 
         #dynamic_shared_memory_type => "posix",
         #log_timezone               => "'US/Pacific'",
@@ -105,9 +107,14 @@ sub init {
     my $self = shift;
     $self->SUPER::init();
 
+    my $port = $self->{+PORT} ||= '5432';
+
     my $dir = $self->{+DIR};
     $self->{+DATA_DIR} = "$dir/data";
-    $self->{+SOCKET} ||= "$dir/.s.PGSQL.5432";
+    $self->{+SOCKET} ||= "$dir/.s.PGSQL.$port";
+
+    $self->{+ENV_VARS} ||= {};
+    $self->{+ENV_VARS}->{PGPORT} = $port unless defined $self->{+ENV_VARS}->{PGPORT};
 
     my %defaults = $self->_default_paths;
     $self->{$_} ||= $defaults{$_} for keys %defaults;
@@ -188,7 +195,7 @@ sub shell_command {
 
 sub start_command {
     my $self = shift;
-    return ($self->{+POSTGRES}, '-D', $self->{+DATA_DIR});
+    return ($self->{+POSTGRES}, '-D' => $self->{+DATA_DIR}, '-p' => $self->{+PORT});
 }
 
 1;
