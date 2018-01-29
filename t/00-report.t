@@ -63,7 +63,7 @@ print STDERR "\n";
     my @mods = qw {
         Test2::API Test2::V0 Importer Module::Pluggable Carp Scalar::Util
         Time::HiRes parent File::Path File::Temp IPC::Cmd POSIX DBD::mysql
-        DBD::Pg
+        DBD::Pg DBI DBD::SQLite
     };
 
     my @rows;
