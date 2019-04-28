@@ -2,7 +2,7 @@ package DBIx::QuickDB::Driver::PostgreSQL;
 use strict;
 use warnings;
 
-our $VERSION = '0.000008';
+our $VERSION = '0.000009';
 
 use IPC::Cmd qw/can_run/;
 
