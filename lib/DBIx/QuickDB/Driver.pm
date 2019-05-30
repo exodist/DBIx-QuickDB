@@ -322,6 +322,8 @@ Base class for DBIx::QuickDB drivers.
 
 =head1 METHODS PROVIDED HERE
 
+=over 4
+
 =item $bool = $db->autostart
 
 True if this db was created with 'autostart' requested.
