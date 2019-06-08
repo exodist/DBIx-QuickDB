@@ -32,7 +32,7 @@ my %WriteMakefileArgs = (
     "Time::HiRes" => 0,
     "parent" => 0
   },
-  "VERSION" => "0.000010",
+  "VERSION" => "0.000011",
   "test" => {
     "TESTS" => "t/*.t t/Drivers/*.t t/Tools/*.t"
   }
