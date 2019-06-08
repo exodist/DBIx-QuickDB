@@ -148,7 +148,7 @@ sub bootstrap {
     $self->start;
 
     for my $try ( 1 .. 5 ) {
-        my $ok = eval { $self->run_command([$self->{+CREATEDB}, '-E', 'UTF8', '-h', $dir, 'quickdb']); 1 };
+        my $ok = eval { $self->run_command([$self->{+CREATEDB}, '-T', 'template0', '-E', 'UTF8', '-h', $dir, 'quickdb']); 1 };
         my $err = $@;
         last if $ok;
         die $@ if $try == 5;
