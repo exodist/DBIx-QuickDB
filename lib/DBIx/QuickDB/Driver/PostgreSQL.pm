@@ -5,6 +5,8 @@ use warnings;
 our $VERSION = '0.000011';
 
 use IPC::Cmd qw/can_run/;
+use DBIx::QuickDB::Util qw/strip_hash_defaults/;
+use Time::HiRes qw/sleep/;
 
 use parent 'DBIx::QuickDB::Driver';
 
@@ -128,14 +130,28 @@ sub init {
     }
 }
 
-sub bootstrap {
+sub clone_data {
     my $self = shift;
 
-    my $dir = $self->{+DIR};
-    my $db_dir = $self->{+DATA_DIR};
-    mkdir($db_dir) or die "Could not create data dir: $!";
-    $self->run_command([$self->{+INITDB}, '-E', 'UTF8', '-D', $db_dir]);
+    my $vars = $self->env_vars || {};
+    delete $vars->{PGPORT} if $vars->{PGPORT} && $vars->{PGPORT} eq $self->port;
 
+    my $config = strip_hash_defaults(
+        $self->{+CONFIG},
+        { $self->_default_config },
+    );
+
+    return (
+        $self->SUPER::clone_data(),
+        ENV_VARS() => $vars,
+        CONFIG()   => $config,
+    );
+}
+
+sub write_config {
+    my $self = shift;
+
+    my $db_dir = $self->{+DATA_DIR};
     open(my $cf, '>', "$db_dir/postgresql.conf") or die "Could not open config file: $!";
     for my $key (sort keys %{$self->{+CONFIG}}) {
         my $val = $self->{+CONFIG}->{$key};
@@ -144,7 +160,17 @@ sub bootstrap {
         print $cf "$key = $val\n";
     }
     close($cf);
+}
 
+sub bootstrap {
+    my $self = shift;
+
+    my $dir = $self->{+DIR};
+    my $db_dir = $self->{+DATA_DIR};
+    mkdir($db_dir) or die "Could not create data dir: $!";
+    $self->run_command([$self->{+INITDB}, '-E', 'UTF8', '-D', $db_dir]);
+
+    $self->write_config;
     $self->start;
 
     for my $try ( 1 .. 5 ) {
@@ -158,6 +184,33 @@ sub bootstrap {
     $self->stop unless $self->{+AUTOSTART};
 
     return;
+}
+
+sub connect {
+    my $self = shift;
+    my ($db_name, %params) = @_;
+
+    my $dbh;
+    my $start = time;
+    while (1) {
+        my $waited = time - $start;
+        die "Timeout waiting for server" if $waited > 10;
+
+        my ($ok, $err);
+        {
+            local $@;
+            $ok = eval {
+                $dbh = $self->SUPER::connect($db_name, %params);
+                1;
+            };
+
+            $err = $@;
+        }
+
+        return $dbh if $ok;
+        die $err unless $err =~ m/the database system is starting up/;
+        sleep 0.01;
+    }
 }
 
 sub connect_string {

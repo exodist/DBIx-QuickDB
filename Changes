@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Add ability to clone databases
+
 0.000010  2019-06-08 13:03:48-07:00 America/Los_Angeles
 
     - More work for issue #1

@@ -71,11 +71,10 @@ sub build_db {
     $inst->bootstrap if $spec->{bootstrap};
     $inst->start     if $spec->{autostart};
 
-    # load_sql => {
-    #   postgresql => [db => $file, $db => $file],
-    # }
     if (my $sql = $spec->{load_sql}) {
         $sql = $sql->{$driver->name} if ref($sql) eq 'HASH';
+        $sql = [$sql] unless ref($sql) eq 'ARRAY';
+
         for (my $i = 0; $i < @$sql; $i += 2) {
             my ($db, $file) = @{$sql}[$i, $i + 1];
             $inst->load_sql($db => $file);
@@ -88,7 +87,6 @@ sub build_db {
 sub check_driver {
     my $class = shift;
     my ($d, $spec) = @_;
-    confess "oops" unless $d;
 
     $d = "DBIx::QuickDB::Driver::$d" unless $d =~ s/^\+// || $d =~ m/^DBIx::QuickDB::Driver::/;
 
@@ -101,7 +99,7 @@ sub check_driver {
         ($v, $why) = $d->viable($spec);
     }
     else {
-        ($v, $why) = (0, $d, "Could not load $d");
+        ($v, $why) = (0, "Could not load $d: $@");
     }
 
     return ($v, $d, $why);

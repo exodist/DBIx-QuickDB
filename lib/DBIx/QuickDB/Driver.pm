@@ -6,9 +6,12 @@ our $VERSION = '0.000011';
 
 use Carp qw/croak confess/;
 use File::Path qw/remove_tree/;
+use File::Temp qw/tempdir/;
 use POSIX ":sys_wait_h";
 use Scalar::Util qw/blessed/;
 use Time::HiRes qw/sleep/;
+
+use DBIx::QuickDB::Util qw/clone_dir/;
 
 use DBIx::QuickDB::Util::HashBase qw{
     pid -root_pid log_file
@@ -32,6 +35,8 @@ sub start_command  { confess "start_command() is not implemented for the " . $_[
 sub shell_command  { confess "shell_command() is not implemented for the " . $_[0]->name . " driver" }
 
 sub list_env_vars { qw/DBI_USER DBI_PASS DBI_DSN/ }
+
+sub write_config {}
 
 sub do_in_env {
     my $self = shift;
@@ -111,6 +116,60 @@ sub init {
     return;
 }
 
+sub clone_data {
+    my $self = shift;
+
+    return (
+        USERNAME()  => $self->{+USERNAME},
+        PASSWORD()  => $self->{+PASSWORD},
+        VERBOSE()   => $self->{+VERBOSE},
+        AUTOSTOP()  => $self->{+AUTOSTOP},
+        AUTOSTART() => $self->{+AUTOSTART},
+
+        cleanup => $self->{+_CLEANUP},
+
+        ENV_VARS() => {%{$self->{+ENV_VARS}}},
+    );
+}
+
+
+sub clone {
+    my $self = shift;
+    my %params = @_;
+
+    confess "Cannot clone a started database, please stop it first."
+        if $self->started;
+
+    my $orig_dir = $self->{+DIR};
+    my $new_dir  = delete $params{dir} // tempdir('DB-QUICK-CLONE-XXXXXX', CLEANUP => 0, TMPDIR => 1);
+
+    clone_dir($orig_dir, $new_dir, verbose => $self->{+VERBOSE});
+
+    my $class = ref($self);
+    my %ok = map {$_ => 1} DBIx::QuickDB::Util::HashBase::attr_list($class);
+    my @bad = grep { !$ok{$_} } keys %params;
+
+    confess "Invalid options to clone(): " . join(', ' => @bad)
+        if @bad;
+
+    my $clone = $class->new(
+        $self->clone_data,
+
+        %params,
+
+        DIR() => $new_dir,
+
+        PID()      => undef,
+        LOG_FILE() => undef,
+    );
+
+    $clone->write_config();
+    $clone->start if $clone->{+AUTOSTART};
+
+    return $clone;
+}
+
+
 sub run_command {
     my $self = shift;
     my ($cmd, $params) = @_;
@@ -182,6 +241,14 @@ sub connect {
     return $dbh;
 }
 
+sub started {
+    my $self = shift;
+
+    my $socket = $self->socket;
+    return 1 if $self->{+PID} || -S $socket;
+    return 0;
+}
+
 sub start {
     my $self = shift;
     my @args = @_;
@@ -223,13 +290,15 @@ sub start {
     return;
 }
 
+sub stop_sig { 'TERM' }
+
 sub stop {
     my $self = shift;
 
     my $pid = $self->{+PID} or return;
 
     local $?;
-    kill('TERM', $pid);
+    kill($self->stop_sig, $pid);
     my $ret = waitpid($pid, 0);
     my $exit = $?;
     die "waitpid returned $ret (expected $pid)" unless $ret == $pid;
@@ -317,6 +386,10 @@ Base class for DBIx::QuickDB drivers.
     sub connect_string { ... }
     sub start_command  { ... }
     sub shell_command  { ... }
+
+    # Implement if necessary
+    sub write_config { ... }
+    sub stop_sig { return $SIG }
 
     1;
 
@@ -464,6 +537,25 @@ Get/set the username to use in C<connect()>.
 
 If this is true then all output from C<run_command> will be shown at all times.
 
+=item $clone = $db->clone()
+
+=item $clone = $db->clone(%params)
+
+Create a copy of the database. This database should be identical, except it
+should not share any state changes moving forward, that means a new copy of all
+data, etc.
+
+=item %data = $db->clone_data()
+
+Data to use when cloning
+
+=item $db->write_config()
+
+no-op on the base class, used in cloning.
+
+=item $sig = $db->stop_sig()
+
+What signal to send to the database server to stop it. Default: C<'TERM'>.
 
 =item $db->DESTROY
 
@@ -552,6 +644,8 @@ See L<DBIx::QuickDB/"SPEC HASH"> for what might be in C<%spec>.
 The first return value is a simple boolean, true if the driver is viable, false
 if it is not. The second value should be an explanation as to why the driver is
 not viable (in cases where it is not).
+
+Drivers may override C<clone()> or C<clone_data()> to control cloning.
 
 =item $socket = $db->socket()
 

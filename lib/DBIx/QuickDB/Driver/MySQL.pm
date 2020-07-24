@@ -5,6 +5,7 @@ use warnings;
 our $VERSION = '0.000011';
 
 use IPC::Cmd qw/can_run/;
+use DBIx::QuickDB::Util qw/strip_hash_defaults/;
 
 use parent 'DBIx::QuickDB::Driver';
 
@@ -164,6 +165,31 @@ sub init {
             $cfg->{$key} = $cfg_defs{$key};
         }
     }
+}
+
+sub clone {
+    my $self = shift;
+    my $clone = $self->SUPER::clone(@_);
+
+
+    return $clone;
+}
+
+sub clone_data {
+    my $self = shift;
+
+    my $config = strip_hash_defaults(
+        $self->{+CONFIG},
+        { $self->_default_config },
+    );
+
+    return (
+        $self->SUPER::clone_data(),
+
+        CONFIG() => $config,
+        MYSQLD() => $self->{+MYSQLD},
+        MYSQL()  => $self->{+MYSQL},
+    );
 }
 
 sub write_config {

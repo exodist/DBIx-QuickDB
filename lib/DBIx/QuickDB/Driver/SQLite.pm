@@ -8,7 +8,7 @@ our $VERSION = '0.000011';
 
 use parent 'DBIx::QuickDB::Driver';
 
-use DBIx::QuickDB::Util::HashBase qw{-sqlite};
+use DBIx::QuickDB::Util::HashBase qw{-sqlite -started};
 
 my ($SQLITE, $DBDSQLITE);
 
@@ -41,12 +41,22 @@ sub init {
     my %defaults = $self->_default_paths;
     $self->{$_} ||= $defaults{$_} for keys %defaults;
 
+    $self->{+STARTED} = 1;
+
     return;
 }
 
 sub bootstrap { return }
 sub start     { return }
 sub stop      { return }
+
+sub clone {
+    my $self = shift;
+
+    local $self->{+STARTED} = 0;
+
+    return $self->SUPER::clone(@_);
+}
 
 sub connect_string {
     my $self = shift;

@@ -41,10 +41,12 @@ sub skipall_unless_can_db {
 
     my $drivers = $spec{driver} ? [$spec{driver}] : $spec{drivers} || [DBIx::QuickDB->plugins];
 
+    my $reason;
     my $ok = 0;
     for my $driver (@$drivers) {
         next unless defined $driver;
         my ($v, $fqn, $why) = DBIx::QuickDB->check_driver($driver, \%spec);
+        $reason = $why if @$drivers == 1;
         next unless $v;
         $ok = $fqn;
         last;
@@ -55,7 +57,7 @@ sub skipall_unless_can_db {
         return $ok;
     }
 
-    $ctx->plan(0, 'SKIP' => "no db driver is viable");
+    $ctx->plan(0, 'SKIP' => $reason || "no db driver is viable");
     $ctx->release;
 
     return;
