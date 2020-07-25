@@ -11,6 +11,8 @@ use Module::Pluggable search_path => 'DBIx::QuickDB::Driver', max_depth => 4, re
 
 my %CACHE;
 
+END { local $?; %CACHE = () }
+
 sub import {
     my $class = shift;
     my ($name, @args) = @_;
@@ -317,7 +319,7 @@ F<https://github.com/exodist/DBIx-QuickDB/>.
 
 =head1 COPYRIGHT
 
-Copyright 2018 Chad Granum E<lt>exodist7@gmail.comE<gt>.
+Copyright 2020 Chad Granum E<lt>exodist7@gmail.comE<gt>.
 
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.

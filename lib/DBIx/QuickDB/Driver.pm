@@ -25,7 +25,7 @@ use DBIx::QuickDB::Util::HashBase qw{
     env_vars
 };
 
-sub viable { (0, "socket() is not implemented for the " . $_[0]->name . " driver") }
+sub viable { (0, "viable() is not implemented for the " . $_[0]->name . " driver") }
 
 sub socket         { confess "socket() is not implemented for the " . $_[0]->name . " driver" }
 sub load_sql       { confess "load_sql() is not implemented for the " . $_[0]->name . " driver" }
@@ -35,6 +35,8 @@ sub start_command  { confess "start_command() is not implemented for the " . $_[
 sub shell_command  { confess "shell_command() is not implemented for the " . $_[0]->name . " driver" }
 
 sub list_env_vars { qw/DBI_USER DBI_PASS DBI_DSN/ }
+
+sub version_string { 'unknown' }
 
 sub write_config {}
 
@@ -143,7 +145,7 @@ sub clone {
     my $orig_dir = $self->{+DIR};
     my $new_dir  = delete $params{dir} // tempdir('DB-QUICK-CLONE-XXXXXX', CLEANUP => 0, TMPDIR => 1);
 
-    clone_dir($orig_dir, $new_dir, verbose => $self->{+VERBOSE});
+    clone_dir($orig_dir, $new_dir, verbose => (($self->{+VERBOSE} // 0) > 2) ? 1 : 0);
 
     my $class = ref($self);
     my %ok = map {$_ => 1} DBIx::QuickDB::Util::HashBase::attr_list($class);
@@ -297,6 +299,18 @@ sub stop {
 
     my $pid = $self->{+PID} or return;
 
+    DBI->visit_handles(
+        sub {
+            my ($driver_handle) = @_;
+
+            $driver_handle->disconnect
+               if $driver_handle->{Type} && $driver_handle->{Type} eq 'db'
+               && $driver_handle->{Name} && index($driver_handle->{Name}, $self->{+DIR}) >= 0;
+
+            return 1;
+        }
+    );
+
     local $?;
     kill($self->stop_sig, $pid);
     my $ret = waitpid($pid, 0);
@@ -380,6 +394,7 @@ Base class for DBIx::QuickDB drivers.
 
     # Methods most drivers should implement
 
+    sub version_string { ... }
     sub socket         { ... }
     sub load_sql       { ... }
     sub bootstrap      { ... }
@@ -630,6 +645,8 @@ the hashref returned by the first.
 
 =head1 METHODS SUBCLASSES SHOULD PROVIDE
 
+Drivers may override C<clone()> or C<clone_data()> to control cloning.
+
 =over
 
 =item ($bool, $why) = $db->viable()
@@ -645,7 +662,49 @@ The first return value is a simple boolean, true if the driver is viable, false
 if it is not. The second value should be an explanation as to why the driver is
 not viable (in cases where it is not).
 
-Drivers may override C<clone()> or C<clone_data()> to control cloning.
+=item $string = Your::Driver::version_string()
+
+=item $string = Your::Driver::version_string(\%PARAMS)
+
+=item $string = Your::Driver->version_string()
+
+=item $string = Your::Driver->version_string(\%PARAMS)
+
+=item $string = $db->version_string()
+
+=item $string = $db->version_string(\%PARAMS)
+
+The default implementation returns 'unknown'.
+
+This is complicated because it can be called as a function, a class method, or
+an object method. It can also optionally be called with a hashref of PARAMS
+that MAY be later used to construct an instance.
+
+Lets assume your driver uses the C<start_my_db> command to launch a database.
+Normally you default to the C<start_my_db> found in the $PATH environment
+variable. Alternatively someone can pass in an alternative path to the binary
+with the 'launcher' parameter. Here is a good implementation:
+
+    use Scalar::Util qw/reftype/;
+
+    sub version_string {
+        my $binary;
+
+        # Go in reverse order assuming the last param hash provided is most important
+        for my $arg (reverse @_) {
+            my $type = reftype($arg) or next; # skip if not a ref
+            next $type eq 'HASH'; # We have a hashref, possibly blessed
+
+            # If we find a launcher we are done looping, we want to use this binary.
+            $binary = $arg->{launcher} and last;
+        }
+
+        # If no args provided one to use we fallback to the default from $PATH
+        $binary ||= DEFAULT_BINARY;
+
+        # Call the binary with '-V', capturing and returning the output using backticks.
+        return `$binary -V`;
+    }
 
 =item $socket = $db->socket()
 
@@ -704,7 +763,7 @@ F<https://github.com/exodist/DBIx-QuickDB/>.
 
 =head1 COPYRIGHT
 
-Copyright 2018 Chad Granum E<lt>exodist7@gmail.comE<gt>.
+Copyright 2020 Chad Granum E<lt>exodist7@gmail.comE<gt>.
 
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.

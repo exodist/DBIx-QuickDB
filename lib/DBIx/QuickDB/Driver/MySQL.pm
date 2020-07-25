@@ -6,6 +6,7 @@ our $VERSION = '0.000011';
 
 use IPC::Cmd qw/can_run/;
 use DBIx::QuickDB::Util qw/strip_hash_defaults/;
+use Scalar::Util qw/reftype/;
 
 use parent 'DBIx::QuickDB::Driver';
 
@@ -25,6 +26,25 @@ BEGIN {
     $MYSQLD   = can_run('mysqld');
     $MYSQL    = can_run('mysql');
     $DBDMYSQL = eval { require DBD::mysql; 'DBD::mysql' };
+}
+
+sub version_string {
+    my $binary;
+
+    # Go in reverse order assuming the last param hash provided is most important
+    for my $arg (reverse @_) {
+        my $type = reftype($arg) or next;    # skip if not a ref
+        next $type eq 'HASH';                # We have a hashref, possibly blessed
+
+        # If we find a launcher we are done looping, we want to use this binary.
+        $binary = $arg->{+MYSQLD} and last;
+    }
+
+    # If no args provided one to use we fallback to the default from $PATH
+    $binary ||= $MYSQLD;
+
+    # Call the binary with '-V', capturing and returning the output using backticks.
+    return `$binary -V`;
 }
 
 sub list_env_vars {
@@ -338,7 +358,7 @@ F<https://github.com/exodist/DBIx-QuickDB/>.
 
 =head1 COPYRIGHT
 
-Copyright 2018 Chad Granum E<lt>exodist7@gmail.comE<gt>.
+Copyright 2020 Chad Granum E<lt>exodist7@gmail.comE<gt>.
 
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
