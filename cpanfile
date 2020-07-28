@@ -17,7 +17,7 @@ requires "Test2::V0" => "0.000097";
 requires "Test::More" => "1.302120";
 requires "Time::HiRes" => "0";
 requires "parent" => "0";
-requires "perl" => "5.008001";
+requires "perl" => "5.012000";
 
 on 'test' => sub {
   requires "Capture::Tiny" => "0.20";
