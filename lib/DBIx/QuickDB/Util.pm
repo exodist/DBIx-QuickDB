@@ -22,8 +22,7 @@ BEGIN {
 sub clone_dir {
     return _clone_dir_rsync(@_) if $RSYNC;
     return _clone_dir_cp(@_)    if $CP;
-
-    confess "Could not find a method of cloning a directory.";
+    return _clone_dir_fcr(@_);
 }
 
 sub _clone_dir_rsync {
@@ -34,6 +33,13 @@ sub _clone_dir_rsync {
 sub _clone_dir_cp {
     my ($src, $dest, %params) = @_;
     system($CP, '-a', $params{verbose} ? ( '-v' ) : (), "$src/", $dest) and die "$CP returned $?";
+}
+
+sub _clone_dir_fcr {
+    my ($src, $dest, %params) = @_;
+    require File::Copy::Recursive;
+
+    File::Copy::Recursive::dircopy($src, $dest) or die "$!";
 }
 
 sub strip_hash_defaults {
