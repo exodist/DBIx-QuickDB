@@ -4,6 +4,7 @@
 requires "Carp" => "0";
 requires "Digest::SHA" => "0";
 requires "Fcntl" => "0";
+requires "File::Copy::Recursive" => "0";
 requires "File::Path" => "0";
 requires "File::Temp" => "0";
 requires "IPC::Cmd" => "0";
