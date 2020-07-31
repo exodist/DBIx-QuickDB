@@ -1,5 +1,5 @@
 use Test2::V0 -target => DBIx::QuickDB::Driver::MySQL;
-use Test2::Require::Module 'DBD::mysql';
+use Test2::Require::Module 'DBD::MariaDB';
 use Test2::Tools::QuickDB;
 
 my @ENV_VARS;
@@ -25,13 +25,13 @@ skipall_unless_can_db('MySQL');
 
 {
     local $@;
-    eval { require DBD::MariaDB };
+    eval { require DBD::mysql };
     no warnings 'redefine';
-    *DBD::MariaDB::dr::connect = sub { die "Should not be using me!" };
+    *DBD::mysql::dr::connect = sub { die "Should not be using me!" };
 }
 
 subtest use_it => sub {
-    my $db = get_db db => {driver => 'MySQL', dbd_driver => 'DBD::mysql', load_sql => [quickdb => 't/schema/mysql.sql']};
+    my $db = get_db db => {driver => 'MySQL', dbd_driver => 'DBD::MariaDB', load_sql => [quickdb => 't/schema/mysql.sql']};
     isa_ok($db, [$CLASS], "Got a database of the right type");
 
     is(get_db_or_skipall('db'), exact_ref($db), "Cached the instance by name");
@@ -79,7 +79,7 @@ subtest use_it => sub {
 };
 
 subtest cleanup => sub {
-    my $db = get_db {driver => 'MySQL', dbd_driver => 'DBD::mysql', load_sql => [quickdb => 't/schema/mysql.sql']};
+    my $db = get_db {driver => 'MySQL', dbd_driver => 'DBD::MariaDB', load_sql => [quickdb => 't/schema/mysql.sql']};
     my $dir = $db->dir;
     my $pid = $db->pid;
 
@@ -105,4 +105,3 @@ subtest viable => sub {
 ok(!(grep { $ENV{$_} ne 'fake' } @ENV_VARS), "All DBI/driver specific env vars were restored");
 
 done_testing;
-

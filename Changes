@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+    - Fix some Postgres 'starting up' issues
+    - Support for percona in MySQL
+    - Support for either DBD::MariaDB or DBD::mysql
+
 0.000013  2020-07-28 21:17:30-07:00 America/Los_Angeles
 
     - Add module to deps

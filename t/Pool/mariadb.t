@@ -28,16 +28,16 @@ skipall_unless_can_db('MySQL');
 
 {
     local $@;
-    eval { require DBD::MariaDB };
-    no warnings qw/once redefine/;
-    *DBD::MariaDB::dr::connect = sub { die "Should not be using me!" };
+    eval { require DBD::mysql };
+    no warnings qw/redefine once/;
+    *DBD::mysql::dr::connect = sub { die "Should not be using me!" };
 }
 
 sub DRIVER() { 'MySQL' }
-sub DBD_DRIVER() { 'DBD::mysql' }
+sub DBD_DRIVER() { 'DBD::MariaDB' }
 
 my $file = __FILE__;
-$file =~ s/mysql\.t$/Pool.pm/;
+$file =~ s/mariadb\.t$/Pool.pm/;
 $file = File::Spec->rel2abs($file);
 require $file;
 
