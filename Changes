@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Fix bug where driver could be forgotten in pool during reclaim
+
 0.000017  2020-11-16 08:26:03-08:00 America/Los_Angeles
 
     - Support for older percona mysqld's that need mysql_install_db run
