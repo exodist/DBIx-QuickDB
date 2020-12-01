@@ -172,6 +172,15 @@ sub viable {
         push @bad => "'mysql' command is missing, needed for load_sql" unless $check{mysql} && -x $check{mysql};
     }
 
+    if ($check{+MYSQLD} || $MYSQLD) {
+        my $version = $this->version_string;
+        if ($version && $version =~ m/(\d+)\.(\d+)\.(\d+)/) {
+            my ($a, $b, $c) = ($1, $2, $3);
+            push @bad => "'mysqld' is too old ($a.$b.$c), need at least 5.6.0"
+                if $a < 5 || ($a == 5 && $b < 6);
+        }
+    }
+
     return (1, undef) unless @bad;
     return (0, join "\n" => @bad);
 }
