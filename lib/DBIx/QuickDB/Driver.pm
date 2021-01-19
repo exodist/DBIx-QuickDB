@@ -326,7 +326,7 @@ sub stop {
             my $waited = time - $start;
 
             if ($waited > 10) {
-                confess "Times out waiting for server to stop";
+                confess "Timed out waiting for server to stop";
                 last;
             }
 
