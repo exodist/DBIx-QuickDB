@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+0.000022  2022-07-08 15:44:44-07:00 America/Los_Angeles
+
     - Better support for percona 5.7
     - Do not modify config reference that is passed in, make a copy
 
