@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Use MariaDB binaries when available
+    - Silence mariadb complaints about using mysql binaries
+
 0.000025  2024-04-16 14:34:21-07:00 America/Los_Angeles
 
     - Fix test error when DBD::mysql is not installed
