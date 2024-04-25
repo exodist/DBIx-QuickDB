@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Fix mariadb warning
+
 0.000027  2024-04-25 12:24:25+01:00 Europe/Lisbon
 
     - Fix doc issue
