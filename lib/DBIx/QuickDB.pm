@@ -122,7 +122,8 @@ DBIx::QuickDB - Quickly start a db server.
 =head1 DESCRIPTION
 
 This library makes it easy to spin up a temporary database server for any
-supported driver. PostgreSQL and MySQL are the initially supported drivers.
+supported driver. PostgreSQL, MySQL and SQLite are the initially supported
+drivers.
 
 =head1 SYNOPSIS
 
