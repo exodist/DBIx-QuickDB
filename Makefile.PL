@@ -38,7 +38,7 @@ my %WriteMakefileArgs = (
   "TEST_REQUIRES" => {
     "Capture::Tiny" => "0.20"
   },
-  "VERSION" => "0.000029",
+  "VERSION" => "0.000030",
   "test" => {
     "TESTS" => "t/*.t t/Drivers/*.t t/Pool/*.t t/Tools/*.t"
   }
