@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Fix silencing of watchers
+
 0.000030  2024-05-06 14:58:26-07:00 America/Los_Angeles
 
     - Cleanup the db-watcher code

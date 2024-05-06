@@ -86,10 +86,10 @@ sub watch {
     local $SIG{INT}  = sub { $kill = 'INT' };
 
     local $SIG{HUP} = sub {
-        #close(STDOUT);
-        #open(STDOUT, '>', \$blah) or warn "$!";
-        #close(STDERR);
-        #open(STDERR, '>', \$blah) or warn "$!";
+        close(STDOUT);
+        open(STDOUT, '>', \$blah) or warn "$!";
+        close(STDERR);
+        open(STDERR, '>', \$blah) or warn "$!";
     };
 
     my $start_pid = $$;
@@ -152,11 +152,15 @@ sub _watcher_kill {
         local $?;
         my $delta = time - $start;
 
-        if ($delta > 4) {
-            unless ($killed) {
-                $killed = 1;
-                kill('KILL', $pid);
+        if ($delta >= 4) {
+            if ($killed) {
+                my $delta2 = time - $killed;
+                next unless $delta2 >= 1;
             }
+
+            warn "Server taking too long to shut down, sending SIGKILL";
+            $killed = time;
+            kill('KILL', $pid);
 
             last if $delta > 8;
         }
@@ -214,7 +218,6 @@ sub DESTROY {
     my $self = shift;
 
     if ($self->{+MASTER_PID} == $$) {
-        $self->detach;
         $self->eliminate;
         $self->wait;
     }
