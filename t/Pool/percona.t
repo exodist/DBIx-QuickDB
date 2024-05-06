@@ -2,8 +2,6 @@ use Test2::V0;
 use Test2::Tools::QuickDB;
 use File::Spec;
 
-use Test2::Require::Module 'DBD::MariaDB';
-
 my @ENV_VARS;
 
 # Contaminate the ENV vars to make sure things work even when these are all
@@ -23,12 +21,12 @@ BEGIN {
     $ENV{$_} = 'fake' for @ENV_VARS;
 }
 
-skipall_unless_can_db('MariaDB');
+skipall_unless_can_db('Percona');
 
-sub DRIVER() { 'MariaDB' }
+sub DRIVER() { 'Percona' }
 
 my $file = __FILE__;
-$file =~ s/mariadb\.t$/Pool.pm/;
+$file =~ s/percona\.t$/Pool.pm/;
 $file = File::Spec->rel2abs($file);
 require $file;
 

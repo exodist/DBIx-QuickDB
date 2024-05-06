@@ -1,4 +1,4 @@
-use Test2::V0 -target => DBIx::QuickDB::Driver::MySQL;
+use Test2::V0 -target => DBIx::QuickDB::Driver::Percona;
 use Test2::Tools::QuickDB;
 
 my @ENV_VARS;
@@ -20,11 +20,11 @@ BEGIN {
     $ENV{$_} = 'fake' for @ENV_VARS;
 }
 
-skipall_unless_can_db('MySQL');
+skipall_unless_can_db('Percona');
 
 subtest use_it => sub {
-    my $db = get_db db => {driver => 'MySQL', load_sql => [quickdb => 't/schema/mysql.sql']};
-    isa_ok($db, ['DBIx::QuickDB::Driver::MySQL::Base'], "Got a database of the right type");
+    my $db = get_db db => {driver => 'Percona', load_sql => [quickdb => 't/schema/percona.sql']};
+    isa_ok($db, [$CLASS], "Got a database of the right type");
 
     is(get_db_or_skipall('db'), exact_ref($db), "Cached the instance by name");
 
@@ -71,7 +71,7 @@ subtest use_it => sub {
 };
 
 subtest cleanup => sub {
-    my $db = get_db {driver => 'MySQL', load_sql => [quickdb => 't/schema/mysql.sql']};
+    my $db = get_db {driver => 'Percona', load_sql => [quickdb => 't/schema/percona.sql']};
     my $dir = $db->dir;
     my $pid = $db->watcher->server_pid;
 
@@ -97,8 +97,6 @@ subtest cleanup => sub {
 
 subtest viable => sub {
     no warnings 'redefine';
-    *DBIx::QuickDB::Driver::MariaDB::server_bin = sub() { undef };
-    *DBIx::QuickDB::Driver::MariaDB::client_bin = sub() { undef };
     *DBIx::QuickDB::Driver::Percona::server_bin = sub() { undef };
     *DBIx::QuickDB::Driver::Percona::client_bin = sub() { undef };
 
