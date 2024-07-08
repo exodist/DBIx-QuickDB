@@ -162,6 +162,10 @@ run-time and you have to store them in variables.
 
 Set this env var if you want QDB to use a temp dir other than the default.
 
+=item DB_VERBOSE
+
+Set this env var to get STDOUT from the database server.
+
 =back
 
 =head1 METHODS
