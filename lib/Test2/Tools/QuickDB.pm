@@ -111,7 +111,7 @@ This is a test library build around DBIx::QuickDB.
 
     skipall_unless_can_db(driver => 'PostgreSQL');
 
-    my $db = get_db(driver => 'PostgreSQL', load_sql => 't/schema/postgresql.sql'});
+    my $db = get_db({driver => 'PostgreSQL', load_sql => 't/schema/postgresql.sql'});
 
     ...
 
