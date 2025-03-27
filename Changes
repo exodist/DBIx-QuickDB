@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Fix typo that caused the MySQL driver to break
+
 0.000036  2025-03-26 22:56:11-07:00 America/Los_Angeles
 
     - Support MySQL community server (MySQLCom)

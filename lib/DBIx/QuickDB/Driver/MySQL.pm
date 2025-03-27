@@ -84,7 +84,7 @@ sub choose {
 
     require DBIx::QuickDB::Driver::MySQLCom;
     ($ok, $why) = DBIx::QuickDB::Driver::MySQLCom->viable($spec);
-    return 'DBIx::QuickDB::Driver::MySQL' if $ok;
+    return 'DBIx::QuickDB::Driver::MySQLCom' if $ok;
 
     require DBIx::QuickDB::Driver::Percona;
     ($ok, $why) = DBIx::QuickDB::Driver::Percona->viable($spec);
@@ -443,8 +443,8 @@ DBIx::QuickDB::Driver::MySQL - Get ANY MySQL driver for DBIx::QuickDB.
 ANY MySQL driver for L<DBIx::QuickDB>.
 
 This will automatically pick L<DBIx::QuickDB::Driver::MariaDB>,
-L<DBIx::QuickDB::Driver::MySQL>, or L<DBIx::QuickDB::Driver::Percona> depending
-on which provider your MySQL was built by.
+L<DBIx::QuickDB::Driver::MySQLCom>, or L<DBIx::QuickDB::Driver::Percona>
+depending on which provider your MySQL was built by.
 
 This also serves as the base class for all 3 of the above drivers.
 
