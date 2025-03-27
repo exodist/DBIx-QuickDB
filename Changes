@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Support MySQL community server (MySQLCom)
+    - Default to DBD::MariaDB for all mysql variants
+
 0.000035  2024-07-10 08:25:37-07:00 America/Los_Angeles
 
     - Documentation Updates
