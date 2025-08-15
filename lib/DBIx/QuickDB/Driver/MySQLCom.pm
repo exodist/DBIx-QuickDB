@@ -18,7 +18,7 @@ sub init {
     my $self = shift;
 
     my $binary = $self->server_bin;
-    my ($help) = capture { system($binary. '--help', '--verbose') };
+    my ($help) = capture { system($binary, '--help', '--verbose') };
 
     if ($help =~ m/--initialize/) {
         $self->{+USE_BOOTSTRAP} = 0;
