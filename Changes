@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Fix Mariadb binary detection
+    - Fix a few minor bugs (AI assisted)
+
 0.000039  2026-01-23 12:04:49-08:00 America/Los_Angeles
 
     - Add $db->resync method
