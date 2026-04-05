@@ -67,6 +67,8 @@ sub list_env_vars {
     );
 }
 
+sub error_log { "$_[0]->{+DIR}/error.log" }
+
 sub _default_paths {
     return (
         initdb   => $INITDB,
@@ -87,6 +89,10 @@ sub _default_config {
         lc_numeric                 => "'en_US.UTF-8'",
         lc_time                    => "'en_US.UTF-8'",
         listen_addresses           => "''",
+        log_destination            => "'stderr'",
+        logging_collector          => "'on'",
+        log_directory              => "'$self->{+DIR}'",
+        log_filename               => "'error.log'",
         max_connections            => "100",
         shared_buffers             => "128MB",
         unix_socket_directories    => "'$self->{+DIR}'",
@@ -188,7 +194,7 @@ sub bootstrap {
     my $dir = $self->{+DIR};
     my $db_dir = $self->{+DATA_DIR};
     mkdir($db_dir) or die "Could not create data dir: $!";
-    $self->run_command([$self->{+INITDB}, '-E', 'UTF8', '-D', $db_dir]);
+    $self->run_command([$self->{+INITDB}, '-E', 'UTF8', '-A', 'trust', '-D', $db_dir]);
 
     $self->write_config;
     $self->start;

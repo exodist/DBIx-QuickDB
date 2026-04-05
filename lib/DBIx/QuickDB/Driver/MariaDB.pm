@@ -18,7 +18,7 @@ sub verify_provider {
 
     $provider //= $class->provider;
 
-    my ($v) = capture { system($bin, '-V') };
+    my ($v, $stderr) = capture { system($bin, '-V') };
     return 1 if $v =~ m/$provider/i;
     return 0;
 }

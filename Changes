@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Make MySQL less noisy
+    - Remove other noise
     - Fix Mariadb binary detection
     - Fix a few minor bugs (AI assisted)
 

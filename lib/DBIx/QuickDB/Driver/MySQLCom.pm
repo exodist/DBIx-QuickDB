@@ -18,7 +18,7 @@ sub init {
     my $self = shift;
 
     my $binary = $self->server_bin;
-    my ($help) = capture { system($binary, '--help', '--verbose') };
+    my ($help, $stderr) = capture { system($binary, '--help', '--verbose') };
 
     if ($help =~ m/--initialize/) {
         $self->{+USE_BOOTSTRAP} = 0;
@@ -38,8 +38,7 @@ sub verify_provider {
 
     $provider //= $class->provider;
 
-    my ($v1, $v2) = capture { system($bin, '--help', '--verbose') };
-    my $v = $v1 . "\n" . $v2;
+    my ($v, $stderr) = capture { system($bin, '-V') };
     return 1 if $v =~ m/$provider/i;
     return 0;
 }

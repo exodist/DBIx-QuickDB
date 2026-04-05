@@ -167,7 +167,7 @@ sub version_string {
     croak "Could not find a viable server binary" unless $binary;
 
     # Call the binary with '-V', capturing and returning the output using backticks.
-    my ($v) = capture { system($binary, '-V') };
+    my ($v, $stderr) = capture { system($binary, '-V') };
 
     return $v;
 }
