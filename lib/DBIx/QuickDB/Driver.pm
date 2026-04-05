@@ -38,6 +38,16 @@ sub connect_string { confess "connect_string() is not implemented for the " . $_
 sub start_command  { confess "start_command() is not implemented for the " . $_[0]->name . " driver" }
 sub shell_command  { confess "shell_command() is not implemented for the " . $_[0]->name . " driver" }
 
+sub error_log { undef }
+
+sub read_error_log {
+    my $self = shift;
+    my $log = $self->error_log or return "";
+    return "" unless -f $log;
+    open(my $fh, '<', $log) or return "Could not open error log '$log': $!";
+    return join "" => <$fh>;
+}
+
 sub list_env_vars { qw/DBI_USER DBI_PASS DBI_DSN/ }
 
 sub version_string { 'unknown' }
@@ -231,6 +241,8 @@ sub run_command {
             open(my $fh, '<', $log_file) or warn "Failed to open log: $!";
             $log = eval { join "" => <$fh> };
         }
+        my $error_log = $self->read_error_log;
+        $log .= "\n=== error log ===\n$error_log" if length $error_log;
         croak "Failed to run command '" . join(' ' => @$cmd) . "' ($exit)\n$log";
     }
 
@@ -305,8 +317,9 @@ sub start {
         my $waited = time - $start;
 
         if ($waited > 10) {
+            my $error_log = $self->read_error_log;
             $watcher->eliminate();
-            confess "Timed out waiting for server to start";
+            confess "Timed out waiting for server to start\n$error_log";
             last;
         }
 

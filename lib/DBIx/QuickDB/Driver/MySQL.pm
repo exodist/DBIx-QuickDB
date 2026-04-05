@@ -35,6 +35,7 @@ sub install_bin_list { qw/mysql_install_db/ }
 sub server_bin       { $_[0]->provider_info->{server_bin}  }
 sub client_bin       { $_[0]->provider_info->{client_bin}  }
 sub install_bin      { $_[0]->provider_info->{install_bin} }
+sub error_log        { "$_[0]->{+DIR}/error.log" }
 
 my %PROVIDER_CACHE;
 sub provider_info {
@@ -243,6 +244,7 @@ sub _default_config {
             'socket'   => $socket,
             'tmpdir'   => $temp_dir,
 
+            'log_error'                      => "$dir/error.log",
             'secure_file_priv'               => $dir,
             'default_storage_engine'         => 'InnoDB',
             'innodb_buffer_pool_size'        => '20M',
