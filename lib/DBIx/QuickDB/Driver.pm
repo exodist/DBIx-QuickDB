@@ -103,9 +103,9 @@ sub name {
     my $in = shift;
     my $type = blessed($in) || $in;
 
-    $in =~ s/^DBIx::QuickDB::Driver:://;
+    $type =~ s/^DBIx::QuickDB::Driver:://;
 
-    return $in;
+    return $type;
 }
 
 sub init {

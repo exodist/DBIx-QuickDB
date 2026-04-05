@@ -298,7 +298,7 @@ sub init {
             my $subcfg = { %{$cfg->{$key}} };
             $cfg->{$key} = $subcfg;
 
-            for my $skey (%$subdft) {
+            for my $skey (keys %$subdft) {
                 next if defined $subcfg->{$skey};
                 $subcfg->{$skey} = $subdft->{$skey};
             }
