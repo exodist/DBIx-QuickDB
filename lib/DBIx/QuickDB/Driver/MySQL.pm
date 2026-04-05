@@ -49,24 +49,29 @@ sub provider_info {
     for my $bin ($this->server_bin_list) {
         if (my $mysqld = can_run($bin)) {
             $found{server_bin} = $mysqld if $this->verify_provider($mysqld);
+            last if $found{server_bin};
         }
     }
 
     return $PROVIDER_CACHE{$class} = {} unless $found{server_bin};
 
     for my $bin ($this->client_bin_list) {
-        if (my $mysql = can_run('mysql')) {
-            $found{client_bin} = $mysql if $this->verify_provider($mysql);
+        if (my $mysql = can_run($bin)) {
+            $found{client_bin} = $mysql;
+            last;
         }
     }
 
     return $PROVIDER_CACHE{$class} = {} unless $found{client_bin};
 
-    if (my $install = can_run('mysql_install_db')) {
-        my ($stdout, $stderr) = capture { system($install) };
-        my $output = $stdout . "\n" .  $stderr;
-        unless ($output =~ m/is deprecated/) {
-            $found{install_bin} = $install if $this->verify_provider($install);
+    for my $bin ($this->install_bin_list) {
+        if (my $install = can_run($bin)) {
+            my ($stdout, $stderr) = capture { system($install) };
+            my $output = $stdout . "\n" .  $stderr;
+            unless ($output =~ m/is deprecated/) {
+                $found{install_bin} = $install;
+            }
+            last if $found{install_bin};
         }
     }
 
