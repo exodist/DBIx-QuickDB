@@ -95,6 +95,13 @@ sub watch {
     my $ddir = $self->{+DB}->dir;
     my $ssig = $self->{+DB}->stop_sig // 'TERM';
 
+    # Ignore SIGTERM/SIGINT before exec so the watcher cannot be killed
+    # during startup before _do_watch installs its signal handlers.
+    # SIG_IGN persists across exec, and any pending signal will be held
+    # until _do_watch replaces these with proper handlers.
+    $SIG{TERM} = 'IGNORE';
+    $SIG{INT}  = 'IGNORE';
+
     exec(
         $^X, '-Ilib',
 
