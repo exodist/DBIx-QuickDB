@@ -35,6 +35,8 @@ sub version_string {
     # If no args provided one to use we fallback to the default from $PATH
     $binary ||= $SQLITE;
 
+    return 'unknown' unless $binary;
+
     # Call the binary with '-V', capturing and returning the output using backticks.
     return `$binary -version`;
 }
