@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Add [PruneCruft] to dist.ini so build artifacts (blib/,
+      pm_to_blib, MYMETA.*) no longer leak into release tarballs.
+
     - Fix provider_info running mariadb-install-db with no args, which created a
       143MB 'data' dir in CWD (GH #11)
     - Exclude 'data/' from dist tarball via GatherDir as a safeguard
