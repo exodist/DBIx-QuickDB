@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+0.000042  2026-05-25 17:30:00-07:00 America/Los_Angeles
+
     - Add DuckDB driver (optional DBD::DuckDB + duckdb CLI; tests skip if absent)
 
     - Add [PruneCruft] to dist.ini so build artifacts (blib/,
