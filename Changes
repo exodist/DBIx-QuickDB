@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Add DuckDB driver (optional DBD::DuckDB + duckdb CLI; tests skip if absent)
+
     - Add [PruneCruft] to dist.ini so build artifacts (blib/,
       pm_to_blib, MYMETA.*) no longer leak into release tarballs.
 
