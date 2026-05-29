@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Stop PostgreSQL with SIGINT (fast shutdown) instead of SIGTERM (smart shutdown) to avoid hangs/SIGKILL and leaked sockets on slow hosts
+
 0.000042  2026-05-25 17:30:00-07:00 America/Los_Angeles
 
     - Add DuckDB driver (optional DBD::DuckDB + duckdb CLI; tests skip if absent)

@@ -69,6 +69,15 @@ sub list_env_vars {
 
 sub error_log { "$_[0]->{+DIR}/error.log" }
 
+# Stop the postmaster with SIGINT ("Fast Shutdown") rather than the default
+# SIGTERM ("Smart Shutdown"). Smart Shutdown waits for every client to
+# disconnect before exiting, so a single lingering connection makes the server
+# hang until the watcher escalates to SIGKILL -- and a SIGKILLed postmaster
+# leaves its unix socket file behind, so stop() then times out waiting for the
+# socket to disappear. Fast Shutdown aborts open transactions, disconnects
+# clients, and shuts down cleanly (removing the socket).
+sub stop_sig { 'INT' }
+
 sub _default_paths {
     return (
         initdb   => $INITDB,
