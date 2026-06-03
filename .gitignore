@@ -22,3 +22,4 @@ template.pod
 mysql-bin.index
 data
 AI_DOCS
+.claude/
