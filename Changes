@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+    - Fixed a pid-reuse race that could shut down the wrong database server. After a server was stopped, its watcher exited and the OS could recycle the watcher's pid; a later teardown signal (e.g. eliminate() from the watcher object's DESTROY, which Driver::stop triggers as its lexical goes out of scope) would then land on whatever now held that pid -- often a sibling cloned database's postmaster, smart-shutting-down a live server out from under its owner. The watcher now refuses to signal its pid once a stop/eliminate has been initiated, and forgets the pid once the watcher has exited. This was the intermittent FreeBSD/PostgreSQL-9.3 t/Pool/postgresql.t failure where a freshly cloned db was already shut down by the time the test connected to it
+
 0.000047  2026-06-05 22:35:47-07:00 America/Los_Angeles
 
 0.000046  2026-06-03 14:58:27-07:00 America/Los_Angeles
