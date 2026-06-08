@@ -27,6 +27,7 @@ use DBIx::QuickDB::Util::HashBase qw{
     env_vars
     <watcher
     <cloned_from
+    -fast_destroy
 };
 
 sub viable { (0, "viable() is not implemented for the " . $_[0]->name . " driver") }
@@ -145,6 +146,8 @@ sub clone_data {
         AUTOSTART() => $self->{+AUTOSTART},
 
         cleanup => $self->{+_CLEANUP},
+
+        FAST_DESTROY() => $self->{+FAST_DESTROY},
 
         ENV_VARS() => {%{$self->{+ENV_VARS}}},
     );
@@ -383,6 +386,47 @@ sub stop {
     return;
 }
 
+# Immediate disposable teardown for clones that are about to be deleted. Unlike
+# stop()/DESTROY this does NOT checkpoint or attempt a graceful shutdown: it asks
+# the watcher to SIGKILL+reap the server and remove the data dir. Only safe when
+# the data dir is disposable (cleanup => 1). Idempotent: after the first call
+# clears the watcher, later calls and DESTROY become no-ops apart from an
+# idempotent cleanup().
+sub destroy_quietly {
+    my $self = shift;
+    return unless $self->{+ROOT_PID} && $self->{+ROOT_PID} == $$;
+
+    if (my $watcher = delete $self->{+WATCHER}) {
+        # Disconnect our DBI handles before the server dies so this process does
+        # not retain broken handles that later report "server has gone away".
+        DBI->visit_handles(
+            sub {
+                my ($driver_handle) = @_;
+
+                $driver_handle->disconnect
+                   if $driver_handle->{Type} && $driver_handle->{Type} eq 'db'
+                   && $driver_handle->{Name} && index($driver_handle->{Name}, $self->{+DIR}) >= 0;
+
+                return 1;
+            }
+        ) if $INC{'DBI.pm'};
+
+        # The watcher is the server's parent, so it is the correct process to
+        # kill and reap it. Do NOT signal the stored server pid directly here.
+        $watcher->fast_eliminate();
+        $watcher->wait();
+
+        # The watcher removes the data dir; this is a defensive fallback in case
+        # it exited before doing so.
+        $self->cleanup() if $self->should_cleanup;
+    }
+    elsif ($self->should_cleanup) {
+        $self->cleanup();
+    }
+
+    return;
+}
+
 sub shell {
     my $self = shift;
     my ($db_name) = @_;
@@ -394,6 +438,13 @@ sub shell {
 sub DESTROY {
     my $self = shift;
     return unless $self->{+ROOT_PID} && $self->{+ROOT_PID} == $$;
+
+    # Opt-in fast teardown for disposable clones. Only honored when the data dir
+    # is actually disposable (_CLEANUP); a contradictory fast_destroy + cleanup
+    # => 0 falls through to the normal graceful path below so a reusable data dir
+    # is never hard-killed.
+    return $self->destroy_quietly()
+        if $self->{+FAST_DESTROY} && $self->{+_CLEANUP};
 
     if (my $watcher = delete $self->{+WATCHER}) {
         # eliminate() signals the watcher to stop the server and delete the data
@@ -598,6 +649,38 @@ running.
 
 Stop the database. Most drivers will make this a no-op if the db is already
 stopped.
+
+=item $db->destroy_quietly
+
+Immediate, disposable teardown for a clone that is about to be deleted. Instead
+of a graceful shutdown (which can block for up to C<2 * QDB_STOP_GRACE + 2>
+seconds while the server checkpoints), this asks the watcher to C<SIGKILL> the
+server straight away, reap it, and remove the data dir.
+
+This is B<only> appropriate for disposable databases (C<< cleanup => 1 >>): it
+does B<not> checkpoint and does B<not> attempt a clean shutdown, so the on-disk
+state is left in whatever condition the hard kill produced. Never use it for a
+template/cache database or anything whose data dir will be reused.
+
+The watcher (the server's parent) is what performs the kill and reap; the driver
+never signals the stored server pid directly. Any of this process's DBI handles
+for the database are disconnected first so they do not linger as broken handles.
+
+Safe to call more than once; later calls (and C<DESTROY>) become no-ops apart
+from an idempotent C<cleanup()>.
+
+See also the C<fast_destroy> attribute, which makes C<DESTROY> call this
+automatically.
+
+=item $bool = $db->fast_destroy
+
+True if this db was created with C<< fast_destroy => 1 >>. When set B<and> the db
+is disposable (C<< cleanup => 1 >>), C<DESTROY> uses C<destroy_quietly()> instead
+of the normal graceful teardown. With C<< cleanup => 0 >> the flag is ignored and
+the graceful path is used, so a reusable data dir is never hard-killed.
+
+The attribute is inherited by clones via C<clone_data()>, so a clone of a
+fast_destroy database is itself fast_destroy.
 
 =item $db->resync
 

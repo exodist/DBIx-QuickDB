@@ -82,6 +82,7 @@ sub watch {
     my $hup = 0;
     local $SIG{TERM} = sub { $kill = 'TERM' };
     local $SIG{INT}  = sub { $kill = 'INT' };
+    local $SIG{USR1} = sub { $kill = 'FAST_TERM' };
     local $SIG{HUP} = sub { $hup = 1 };
 
     my $start_pid = $$;
@@ -101,6 +102,15 @@ sub watch {
     # until _do_watch replaces these with proper handlers.
     $SIG{TERM} = 'IGNORE';
     $SIG{INT}  = 'IGNORE';
+
+    # Block (rather than ignore) the fast-eliminate signal across the exec. A
+    # blocked signal stays *pending* instead of being discarded, so a
+    # fast_eliminate() that races server startup -- arriving after the socket is
+    # up (so the caller's start() has returned) but before _do_watch has
+    # installed its handler -- is not lost: _do_watch unblocks it once the
+    # handler is in place and it fires immediately. SIG_IGN would silently drop
+    # it, leaving the caller's wait() to block for the full stop-grace timeout.
+    POSIX::sigprocmask(POSIX::SIG_BLOCK(), POSIX::SigSet->new(POSIX::SIGUSR1()));
 
     exec(
         $^X, '-Ilib',
@@ -127,7 +137,14 @@ sub _do_watch {
     my $hup  = $params{hup}  // 0;
     local $SIG{TERM} = sub { $kill = 'TERM' };
     local $SIG{INT}  = sub { $kill = 'INT' };
+    local $SIG{USR1} = sub { $kill = 'FAST_TERM' };
     local $SIG{HUP}  = sub { $hup  = 1 };
+
+    # watch() blocked SIGUSR1 before exec so a fast_eliminate() racing startup
+    # would stay pending rather than be discarded. Now that the handler above is
+    # installed, unblock it -- any pending fast-eliminate fires here and sets
+    # $kill before we enter the watch loop.
+    POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), POSIX::SigSet->new(POSIX::SIGUSR1()));
 
     my $blah;
     close(STDIN);
@@ -188,6 +205,19 @@ sub _watcher_terminate {
     my $got_sig  = $params{got_sig};
     my $send_sig = $params{send_sig} // $got_sig // 'TERM';
 
+    # fast_eliminate(): SIGKILL the server immediately, reap it, drop the data
+    # dir. No graceful shutdown -- the data dir is disposable so its integrity
+    # does not matter. Used only for clones being deleted.
+    if ($got_sig && $got_sig eq 'FAST_TERM') {
+        $class->_watcher_kill_fast($pid);
+
+        # Ignore errors here.
+        my $err = [];
+        remove_tree($dir, {safe => 1, error => \$err}) if -d $dir;
+
+        return;
+    }
+
     $class->_watcher_kill($send_sig, $pid);
 
     if ($got_sig && $got_sig eq 'TERM') {
@@ -195,6 +225,37 @@ sub _watcher_terminate {
         my $err = [];
         remove_tree($dir, {safe => 1, error => \$err}) if -d $dir;
     }
+}
+
+sub _watcher_kill_fast {
+    my $class = shift;
+    my ($pid) = @_;
+
+    kill('KILL', $pid) or return;
+
+    # Only waiting to reap the just-SIGKILLed process, not for a graceful
+    # shutdown. This should resolve almost immediately; the 2s cap is a guard
+    # against pathological cases (e.g. a process stuck in uninterruptible IO).
+    my ($check, $exit);
+    my $start = time;
+
+    until ($check) {
+        local $?;
+
+        $check = waitpid($pid, WNOHANG);
+        $exit = $?;
+
+        last if $check;
+        last if time - $start > 2;
+
+        sleep 0.01;
+    }
+
+    die "PID refused to exit after SIGKILL" unless $check;
+    die "Something else reaped our process" if $check < 0;
+    die "Reaped the wrong process '$check' instead of '$pid'" if $pid != $check;
+
+    return;
 }
 
 sub _watcher_kill {
@@ -265,6 +326,16 @@ sub eliminate {
     return if $self->{+ELIMINATED}++ || $self->{+STOPPED};
     my $pid = $self->{+WATCHER_PID} or return;
     kill('TERM', $pid);
+}
+
+# Like eliminate(), but the watcher SIGKILLs the server immediately rather than
+# attempting a graceful shutdown. Sets ELIMINATED so the normal teardown signals
+# are never also sent to this (possibly soon-to-be-recycled) pid.
+sub fast_eliminate {
+    my $self = shift;
+    return if $self->{+ELIMINATED}++ || $self->{+STOPPED};
+    my $pid = $self->{+WATCHER_PID} or return;
+    kill('USR1', $pid);
 }
 
 sub detach {
@@ -352,6 +423,15 @@ This will stop the server, but keep the data dir intact.
 
 This will stop the server, and if the instance is supposed to be cleaned up
 then the data dir will be deleted.
+
+=item SIGUSR1 - Fast eliminate: SIGKILL the server immediately, delete the data
+
+Like SIGTERM, but the server is C<SIGKILL>ed straight away instead of being
+given a chance to shut down gracefully, then reaped, then the data dir is
+removed. Used for disposable clones being deleted (see
+L<DBIx::QuickDB::Driver/destroy_quietly>). The watcher blocks this signal across
+its startup C<exec> so a fast-eliminate that races server startup stays pending
+rather than being lost.
 
 =item SIGHUP - Do not report errors
 
