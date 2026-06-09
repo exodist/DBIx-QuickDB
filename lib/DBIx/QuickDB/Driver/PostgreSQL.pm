@@ -79,6 +79,17 @@ sub error_log { "$_[0]->{+DIR}/error.log" }
 # shutdown is preferred whenever it is possible.
 sub stop_sig { 'TERM' }
 
+# Fast/disposable teardown uses SIGQUIT ("Immediate Shutdown") rather than the
+# base-class SIGKILL. Immediate Shutdown aborts all backends without a
+# checkpoint -- so it is nearly as fast as SIGKILL -- but the postmaster still
+# runs its exit cleanup and RELEASES its SysV semaphores (and shared memory). A
+# SIGKILLed postmaster cannot clean up, and because a disposable clone's data
+# dir is then deleted no future postmaster will ever reuse that IPC key, so the
+# semaphores leak permanently. On hosts where PostgreSQL uses SysV semaphores
+# (FreeBSD, OpenBSD, macOS) a suite that hard-kills many disposable clones can
+# exhaust the kernel SEMMNI/SEMMNS limits; SIGQUIT avoids that.
+sub fast_stop_sig { 'QUIT' }
+
 sub _default_paths {
     return (
         initdb   => $INITDB,

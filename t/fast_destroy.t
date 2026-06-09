@@ -45,13 +45,16 @@ subtest destroy_quietly_basic => sub {
     $clone->destroy_quietly;
     my $elapsed = time - $start;
 
-    ok($elapsed < 5, "destroy_quietly did not wait for QDB_STOP_GRACE (${elapsed}s)");
+    # Threshold is generous (grace=30 means the graceful path would block up to
+    # 2*30+2=62s) so a loaded host running this suite under prove -j8 does not
+    # flake; it still proves the grace wait was skipped entirely.
+    ok($elapsed < 15, "destroy_quietly did not wait for QDB_STOP_GRACE (${elapsed}s)");
 
     # Watcher reaps the server before exiting; once the watcher is gone the
     # server is gone too.
     my $gone_start = time;
     while (pid_alive($wpid) || pid_alive($spid)) {
-        last if time - $gone_start > 5;
+        last if time - $gone_start > 15;
         select(undef, undef, undef, 0.02);
     }
 
@@ -113,11 +116,13 @@ subtest fast_destroy_attr_cleanup => sub {
     undef $clone;
     my $elapsed = time - $start;
 
-    ok($elapsed < 5, "DESTROY used fast path, no QDB_STOP_GRACE wait (${elapsed}s)");
+    # Generous threshold (vs grace=30 -> up to 62s graceful) to stay robust
+    # under prove -j8 load while still proving the fast path was taken.
+    ok($elapsed < 15, "DESTROY used fast path, no QDB_STOP_GRACE wait (${elapsed}s)");
 
     my $gone = time;
     while (pid_alive($wpid) || pid_alive($spid)) {
-        last if time - $gone > 5;
+        last if time - $gone > 15;
         select(undef, undef, undef, 0.02);
     }
     ok(!pid_alive($spid), "server gone after fast DESTROY");
