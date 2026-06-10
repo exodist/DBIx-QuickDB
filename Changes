@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+0.000049  2026-06-09 17:14:55-07:00 America/Los_Angeles
+
     - Added Driver::destroy_quietly(): fast-destroy teardown for disposable clones (cleanup => 1) that kills, reaps, and removes the data dir immediately instead of a graceful shutdown that can block 2*QDB_STOP_GRACE+2 seconds.
     - Added an opt-in fast_destroy attribute: DESTROY uses destroy_quietly() when cleanup => 1, falls through to the graceful path when cleanup => 0, and is inherited by clones via clone_data().
     - Added per-driver fast_stop_sig() for fast/forced teardown: default SIGKILL, PostgreSQL overrides to SIGQUIT so the postmaster releases its SysV semaphores instead of leaking them; watcher escalates to SIGKILL if it does not stop promptly.
