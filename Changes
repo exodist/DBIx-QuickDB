@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+0.000050  2026-06-10 14:14:43-07:00 America/Los_Angeles
+
     - Watcher teardown blocks on the reap after sending SIGKILL instead of racing a deadline that was too short at low QDB_STOP_GRACE.
     - t/Pool wraps every server-spawning db()/fetch_db() in the resource-skip helper so a semaphore-exhausted host skips instead of failing.
 
