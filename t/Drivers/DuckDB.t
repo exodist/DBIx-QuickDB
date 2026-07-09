@@ -1,4 +1,4 @@
-use Test2::V0 -target => DBIx::QuickDB::Driver::DuckDB;
+use Test2::V0 -target => 'DBIx::QuickDB::Driver::DuckDB';
 use Test2::Tools::QuickDB;
 
 # Contaminate the ENV vars to make sure things work even when these are all

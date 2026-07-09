@@ -1,4 +1,4 @@
-use Test2::V0 -target => DBIx::QuickDB::Driver::PostgreSQL;
+use Test2::V0 -target => 'DBIx::QuickDB::Driver::PostgreSQL';
 use Test2::Tools::QuickDB;
 
 my @ENV_VARS;

@@ -1,5 +1,6 @@
 {{$NEXT}}
 
+    - t/Drivers tests now quote the -target class name; the barewords failed to compile under Test2::Harness (yath), which enables strict before line 1.
     - PostgreSQL driver now reports not viable when bootstrap or autostart is requested as root (EUID 0), since initdb and postgres refuse to run as root, turning a start timeout into a clean skip (GH #12).
     - t/broken_mariadb_versions.t now skips on MSWin32, where its #!/bin/sh stub servers cannot execute and made the MDEV-38811 refusal check spuriously fail.
 

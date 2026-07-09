@@ -1,4 +1,4 @@
-use Test2::V0 -target => DBIx::QuickDB::Driver::MySQL;
+use Test2::V0 -target => 'DBIx::QuickDB::Driver::MySQL';
 use Test2::Tools::QuickDB;
 
 BEGIN {
