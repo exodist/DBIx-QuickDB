@@ -1,5 +1,6 @@
 {{$NEXT}}
 
+    - PostgreSQL driver now reports not viable when bootstrap or autostart is requested as root (EUID 0), since initdb and postgres refuse to run as root, turning a start timeout into a clean skip (GH #12).
     - t/broken_mariadb_versions.t now skips on MSWin32, where its #!/bin/sh stub servers cannot execute and made the MDEV-38811 refusal check spuriously fail.
 
 0.000052  2026-07-08 21:46:58-07:00 America/Los_Angeles

@@ -144,6 +144,14 @@ sub viable {
         push @bad => "'postgres' command is missing, needed for autostart" unless $check{postgres} && -x $check{postgres};
     }
 
+    # PostgreSQL's initdb and postgres flatly refuse to run as root (geteuid()
+    # == 0), and there is no override flag; running as root manifests as a start
+    # timeout otherwise. This check is Unix-only, mirroring initdb's own
+    # #ifndef WIN32 guard. Only bootstrap/autostart spawn those binaries.
+    if (($spec->{bootstrap} || $spec->{autostart}) && $^O ne 'MSWin32' && $> == 0) {
+        push @bad => "PostgreSQL's initdb and postgres refuse to run as root (EUID 0); run as an unprivileged user";
+    }
+
     if ($spec->{load_sql}) {
         push @bad => "'psql' command is missing, needed for load_sql" unless $check{psql} && -x $check{psql};
     }
