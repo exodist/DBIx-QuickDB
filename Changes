@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+    - Temp dir names now include the pid: File::Temp derives names from rand(), so forked or identically-seeded processes (e.g. under Test2::Plugin::SRand's date seed) drew identical DB-QUICK-* name sequences and could converge on one directory, corrupting a live database.
+    - The Drivers/QuickDB/Pool tests now run once per database installation, forking a subprocess per install; with AUTHOR_TESTING set the test helpers live-scan ~/dbs/*/bin for developer installs in addition to the system install (nothing in lib/ consults ~/dbs).
+    - Removed the stale hardcoded ~/dbs PATH prepends from the tests; added AGENTS.md with the developer testing protocol.
     - t/Drivers tests now quote the -target class name; the barewords failed to compile under Test2::Harness (yath), which enables strict before line 1.
     - PostgreSQL driver now reports not viable when bootstrap or autostart is requested as root (EUID 0), since initdb and postgres refuse to run as root, turning a start timeout into a clean skip (GH #12).
     - t/broken_mariadb_versions.t now skips on MSWin32, where its #!/bin/sh stub servers cannot execute and made the MDEV-38811 refusal check spuriously fail.
