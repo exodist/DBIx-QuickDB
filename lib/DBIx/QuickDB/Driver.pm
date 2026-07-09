@@ -194,7 +194,9 @@ sub clone {
         if $self->started;
 
     my $orig_dir = $self->{+DIR};
-    my $new_dir  = delete $params{dir} // tempdir('DB-QUICK-CLONE-XXXXXX', CLEANUP => 0, $ENV{QDB_TMPDIR} ? (DIR => $ENV{QDB_TMPDIR}) : (TMPDIR => 1));
+    # $$ in the template for the same reason as build_db: rand()-derived
+    # names collide across forked/identically-seeded processes.
+    my $new_dir  = delete $params{dir} // tempdir("DB-QUICK-CLONE-$$-XXXXXX", CLEANUP => 0, $ENV{QDB_TMPDIR} ? (DIR => $ENV{QDB_TMPDIR}) : (TMPDIR => 1));
 
     clone_dir($orig_dir, $new_dir, verbose => (($self->{+VERBOSE} // 0) > 2) ? 1 : 0);
 
