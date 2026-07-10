@@ -222,6 +222,13 @@ sub clone {
         CLONED_FROM() => $orig_dir,
     );
 
+    # A clone must start with fresh logs. clone_dir copied the source's
+    # error.log and cmd-log-* files along with the data dir, which made a
+    # clone's logs look like they contained the parent's history -- confusing
+    # when debugging the clone (and it can trip naive log scanning).
+    if (my $log = $clone->error_log) { unlink($log) if -f $log }
+    unlink($_) for glob("$new_dir/cmd-log-*");
+
     $clone->write_config();
     $clone->start if $clone->{+AUTOSTART};
 
