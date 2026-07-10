@@ -285,6 +285,22 @@ sub _watcher_kill_fast {
     return;
 }
 
+# Seconds a graceful stop may take before the watcher escalates (and before
+# wait() starts worrying). The default must comfortably exceed a NORMAL clean
+# shutdown on a loaded host: MySQL 8's InnoDB shutdown and PostgreSQL's
+# shutdown checkpoint both routinely take more than the old default of 4s
+# under a parallel test load, which made escalation (and its warning, and for
+# MySQL a straight SIGKILL plus crash recovery on the next clone start) the
+# common case rather than the pathological one. Historically this was kept
+# small because wedged shutdowns "never finish no matter how long we wait" --
+# that wedge was stop() signals being lost across the watcher exec, fixed by
+# blocking them; real shutdowns do finish.
+sub _stop_grace {
+    my $grace = $ENV{QDB_STOP_GRACE};
+    $grace = 10 unless defined($grace) && $grace =~ /^\d+$/ && $grace > 0;
+    return $grace;
+}
+
 sub _watcher_kill {
     my $class = shift;
     my ($sig, $pid, $fast_sig) = @_;
@@ -300,8 +316,7 @@ sub _watcher_kill {
     # in a crash-recovery state, and a clone of that dir then replays WAL on
     # first start, jumping SERIAL sequences forward by SEQ_LOG_VALS (32) --
     # silently corrupting cloned databases. Tunable via QDB_STOP_GRACE.
-    my $kill_after = $ENV{QDB_STOP_GRACE};
-    $kill_after = 4 unless defined($kill_after) && $kill_after =~ /^\d+$/ && $kill_after > 0;
+    my $kill_after = _stop_grace();
 
     # Two-stage escalation once the graceful signal has not stopped the server by
     # $kill_after. First send the driver's fast-stop signal -- an immediate but
@@ -412,10 +427,8 @@ sub wait {
     # Give the watcher long enough to finish a graceful shutdown. The watcher
     # escalates to SIGKILL on the server after QDB_STOP_GRACE and then BLOCKS
     # until the server is reaped, so this must outlast the watcher's own
-    # escalation schedule. Defaults to 10s (grace 4 -> give-up 8 -> 10).
-    my $grace = $ENV{QDB_STOP_GRACE};
-    $grace = 4 unless defined($grace) && $grace =~ /^\d+$/ && $grace > 0;
-    my $timeout = $grace * 2 + 2;
+    # escalation schedule (grace + grace/2, plus slack).
+    my $timeout = _stop_grace() * 2 + 2;
 
     # A watcher that outlives $timeout is almost never hung -- the usual
     # cause is a server the kernel has not been able to kill yet (e.g. stuck

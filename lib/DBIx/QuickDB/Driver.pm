@@ -382,6 +382,35 @@ sub start {
     return;
 }
 
+# Disconnect this process's DBI handles to this instance's server. Must run
+# before any teardown signal: a connected client stalls a graceful shutdown
+# (PostgreSQL's smart shutdown waits for clients INDEFINITELY, mysqld several
+# seconds), pinning the stop at the full QDB_STOP_GRACE before the watcher
+# escalates. It also keeps this process from retaining broken handles that
+# later report "server has gone away". Skipped during global destruction:
+# DBI's own structures are already being torn down (DBI->visit_handles dies
+# with "Can't call method visit_child_handles on an undefined value"), and
+# retaining broken handles no longer matters because the process is exiting.
+sub _disconnect_handles {
+    my $self = shift;
+
+    return unless $INC{'DBI.pm'} && ${^GLOBAL_PHASE} ne 'DESTRUCT';
+
+    DBI->visit_handles(
+        sub {
+            my ($driver_handle) = @_;
+
+            $driver_handle->disconnect
+               if $driver_handle->{Type} && $driver_handle->{Type} eq 'db'
+               && $driver_handle->{Name} && index($driver_handle->{Name}, $self->{+DIR}) >= 0;
+
+            return 1;
+        }
+    );
+
+    return;
+}
+
 sub stop {
     my $self = shift;
     my %params = @_;
@@ -395,17 +424,7 @@ sub stop {
     # No-op for drivers that do not need it.
     $self->checkpoint;
 
-    DBI->visit_handles(
-        sub {
-            my ($driver_handle) = @_;
-
-            $driver_handle->disconnect
-               if $driver_handle->{Type} && $driver_handle->{Type} eq 'db'
-               && $driver_handle->{Name} && index($driver_handle->{Name}, $self->{+DIR}) >= 0;
-
-            return 1;
-        }
-    );
+    $self->_disconnect_handles;
 
     $watcher->stop();
 
@@ -438,23 +457,7 @@ sub destroy_quietly {
     return unless $self->{+ROOT_PID} && $self->{+ROOT_PID} == $$;
 
     if (my $watcher = delete $self->{+WATCHER}) {
-        # Disconnect our DBI handles before the server dies so this process does
-        # not retain broken handles that later report "server has gone away".
-        # Skip this during global destruction: DBI's own structures are already
-        # being torn down (DBI->visit_handles dies with "Can't call method
-        # visit_child_handles on an undefined value"), and retaining broken
-        # handles no longer matters because the process is exiting anyway.
-        DBI->visit_handles(
-            sub {
-                my ($driver_handle) = @_;
-
-                $driver_handle->disconnect
-                   if $driver_handle->{Type} && $driver_handle->{Type} eq 'db'
-                   && $driver_handle->{Name} && index($driver_handle->{Name}, $self->{+DIR}) >= 0;
-
-                return 1;
-            }
-        ) if $INC{'DBI.pm'} && ${^GLOBAL_PHASE} ne 'DESTRUCT';
+        $self->_disconnect_handles;
 
         # The watcher is the server's parent, so it is the correct process to
         # kill and reap it. Do NOT signal the stored server pid directly here.
@@ -492,6 +495,12 @@ sub DESTROY {
         if $self->{+FAST_DESTROY} && $self->{+_CLEANUP};
 
     if (my $watcher = delete $self->{+WATCHER}) {
+        # A still-connected handle stalls the graceful shutdown that
+        # eliminate() requests (PostgreSQL smart shutdown waits for clients
+        # indefinitely) -- without this, every DESTROY of a db with an open
+        # handle sat out the full stop grace and then got escalated.
+        $self->_disconnect_handles;
+
         # eliminate() signals the watcher to stop the server and delete the data
         # dir; destroying the watcher then blocks (via Watcher::wait) until the
         # watcher process has exited, and the watcher reaps the server before it

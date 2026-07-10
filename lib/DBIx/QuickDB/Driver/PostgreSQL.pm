@@ -103,6 +103,14 @@ sub _default_config {
     my $self = shift;
 
     return (
+        # QuickDB databases are short-lived test instances: autovacuum buys
+        # nothing, and on PostgreSQL <= 14 its launcher can stall shutdown for
+        # PGSTAT_MAX_WAIT_TIME (10s) waiting on the stats collector ("using
+        # stale statistics instead of current ones because stats collector is
+        # not responding"), which made stop() blow the whole stop grace and
+        # get escalated. Consumers who need it can override.
+        autovacuum                 => "off",
+
         datestyle                  => "'iso, mdy'",
         default_text_search_config => "'pg_catalog.english'",
         lc_messages                => "'en_US.UTF-8'",
