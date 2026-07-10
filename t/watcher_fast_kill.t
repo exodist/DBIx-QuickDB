@@ -104,7 +104,12 @@ subtest driver_fast_stop_sig => sub {
 # signal (which releases SysV semaphores) instead of being SIGKILLed outright
 # and leaking them.
 subtest graceful_kill_escalates_via_fast_sig => sub {
-    local $ENV{QDB_STOP_GRACE} = 1;    # fast_at=1s, kill_at=2s, give_up=2s
+    # Grace 4 -> fast_at=4s, kill_at=6s. The 2s gap between SIGQUIT and
+    # SIGKILL matters: with grace 1 the gap was only 1s, and on a slow loaded
+    # smoker the child was not scheduled in time to run its QUIT handler
+    # (which writes the marker file asserted below) before SIGKILL landed --
+    # observed as a spurious CPAN Testers failure of the marker assertion.
+    local $ENV{QDB_STOP_GRACE} = 4;
     local $SIG{__WARN__} = sub { };    # silence the expected escalation warnings
 
     # Child ignores SIGTERM (the polite stop) but exits cleanly on SIGQUIT, the
@@ -130,7 +135,7 @@ subtest graceful_kill_escalates_via_fast_sig => sub {
 
     ok(-e "$tmp/grace-quit", "graceful escalation sent the fast_stop_sig (SIGQUIT), not a bare SIGKILL");
     ok(!pid_alive($pid),     "child reaped");
-    ok($elapsed < 5,         "escalation happened within the grace window (${elapsed}s)");
+    ok($elapsed < 10,        "escalation happened within the grace window (${elapsed}s)");
 };
 
 # If even the fast_stop_sig is ignored, _watcher_kill must still escalate to
