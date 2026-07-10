@@ -297,9 +297,15 @@ sub checkpoint { }
 sub cleanup {
     my $self = shift;
 
-    # Ignore errors here.
+    # Ignore errors here. The eval matters: the 'error' handler only collects
+    # per-file failures, but File::Path hard-dies ("cannot chdir to .. from
+    # DIR ... aborting") when the tree mutates underneath it -- which happens
+    # legitimately when the watcher daemon is deleting this same directory
+    # concurrently. Deletion is idempotent best-effort; whoever wins, the dir
+    # ends up gone. Without the eval that race aborted the whole process (in
+    # cleanup) after an otherwise passing run.
     my $err = [];
-    remove_tree($self->{+DIR}, {safe => 1, error => \$err}) if -d $self->{+DIR};
+    eval { remove_tree($self->{+DIR}, {safe => 1, error => \$err}) } if -d $self->{+DIR};
     return;
 }
 

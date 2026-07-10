@@ -216,9 +216,11 @@ sub _watcher_terminate {
     if ($got_sig && $got_sig eq 'FAST_TERM') {
         $class->_watcher_kill_fast($pid, $params{fast_sig});
 
-        # Ignore errors here.
+        # Ignore errors here. eval because File::Path hard-dies (not routed
+        # through the 'error' handler) if the owner process deletes this same
+        # tree concurrently; deletion is idempotent best-effort.
         my $err = [];
-        remove_tree($dir, {safe => 1, error => \$err}) if -d $dir;
+        eval { remove_tree($dir, {safe => 1, error => \$err}) } if -d $dir;
 
         return;
     }
@@ -226,9 +228,9 @@ sub _watcher_terminate {
     $class->_watcher_kill($send_sig, $pid, $params{fast_sig});
 
     if ($got_sig && $got_sig eq 'TERM') {
-        # Ignore errors here.
+        # Ignore errors here (eval: see FAST_TERM above).
         my $err = [];
-        remove_tree($dir, {safe => 1, error => \$err}) if -d $dir;
+        eval { remove_tree($dir, {safe => 1, error => \$err}) } if -d $dir;
     }
 }
 
