@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+0.000053  2026-07-10 11:07:52-07:00 America/Los_Angeles
+
     - Temp dir names now include the pid: File::Temp derives names from rand(), so forked or identically-seeded processes (e.g. under Test2::Plugin::SRand's date seed) drew identical DB-QUICK-* name sequences and could converge on one directory, corrupting a live database.
     - MySQL-family servers are now started with loose-mysqlx=OFF; the X Plugin defaults ON with a global default socket (/tmp/mysqlx.sock) and TCP port (33060), so concurrent instances contended on shared resources despite per-instance datadirs.
     - Fixed stop()/eliminate() signals being silently lost when they raced watcher startup: SIGTERM/SIGINT were SIG_IGN'd (discarded) across the watcher's exec instead of blocked (held pending) like SIGUSR1 already was, so a stop landing in that window left the watcher running until the caller gave up and killed it, orphaning a live server whose data dir stayed locked; the Pool build-then-stop pattern hit this constantly.
