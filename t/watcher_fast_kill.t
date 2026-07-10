@@ -22,28 +22,32 @@ my $tmp = tempdir(CLEANUP => 1);
 
 sub pid_alive { my $p = shift; return kill(0, $p) ? 1 : 0 }
 
-# Fork a child that installs $disposition for SIGQUIT, announces readiness by
-# creating $tmp/ready-$$, and otherwise sleeps forever.
+# Fork a child that installs the given %SIG dispositions, announces readiness
+# down a pipe, and otherwise sleeps forever (it exists to be killed). The pipe
+# is exact synchronization: the parent's sysread blocks until the handlers are
+# installed, with no polling and no arbitrary deadline for a loaded host to
+# blow. If the child dies before becoming ready the parent sees EOF and dies.
 sub spawn_child {
-    my ($disposition) = @_;
+    my (%sigs) = @_;
+
+    pipe(my $r, my $w) or die "pipe failed: $!";
 
     my $pid = fork;
     die "fork failed: $!" unless defined $pid;
 
     if (!$pid) {
-        $SIG{QUIT} = $disposition;
-        open(my $fh, '>', "$tmp/ready-$$") or POSIX::_exit(1);
-        close($fh);
+        close($r);
+        $SIG{$_} = $sigs{$_} for keys %sigs;
+        syswrite($w, "1") or POSIX::_exit(1);
+        close($w);
         sleep 0.05 while 1;
         POSIX::_exit(0);
     }
 
-    # Parent: wait until the child has installed its handler.
-    my $start = time;
-    until (-e "$tmp/ready-$pid") {
-        die "child never became ready" if time - $start > 5;
-        sleep 0.01;
-    }
+    close($w);
+    my $got = sysread($r, my $buf, 1);    # blocks until the child is ready
+    close($r);
+    die "child never became ready" unless $got;
 
     return $pid;
 }
@@ -51,17 +55,9 @@ sub spawn_child {
 subtest custom_signal_used => sub {
     # A child that exits cleanly on SIGQUIT must be stopped by SIGQUIT itself
     # (not a SIGKILL), proving the requested signal is what gets sent.
-    my $pid = fork;
-    die "fork failed: $!" unless defined $pid;
-    if (!$pid) {
-        $SIG{QUIT} = sub { open(my $f, '>', "$tmp/got-quit"); close($f); POSIX::_exit(0) };
-        open(my $fh, '>', "$tmp/ready-$$") or POSIX::_exit(1);
-        close($fh);
-        sleep 0.05 while 1;
-        POSIX::_exit(0);
-    }
-    my $start = time;
-    until (-e "$tmp/ready-$pid") { die "not ready" if time - $start > 5; sleep 0.01 }
+    my $pid = spawn_child(
+        QUIT => sub { open(my $f, '>', "$tmp/got-quit"); close($f); POSIX::_exit(0) },
+    );
 
     DBIx::QuickDB::Watcher->_watcher_kill_fast($pid, 'QUIT');
 
@@ -72,7 +68,7 @@ subtest custom_signal_used => sub {
 subtest escalates_to_sigkill => sub {
     # A child that ignores SIGQUIT must still be reaped: _watcher_kill_fast
     # escalates to SIGKILL after its grace window.
-    my $pid = spawn_child('IGNORE');
+    my $pid = spawn_child(QUIT => 'IGNORE');
 
     my $start = time;
     ok(lives { DBIx::QuickDB::Watcher->_watcher_kill_fast($pid, 'QUIT') },
@@ -86,7 +82,7 @@ subtest escalates_to_sigkill => sub {
 
 subtest default_is_sigkill => sub {
     # No signal argument: defaults to SIGKILL, which cannot be caught.
-    my $pid = spawn_child('IGNORE');
+    my $pid = spawn_child(QUIT => 'IGNORE');
     DBIx::QuickDB::Watcher->_watcher_kill_fast($pid);
     ok(!pid_alive($pid), "default SIGKILL reaped the child");
 };
@@ -115,18 +111,10 @@ subtest graceful_kill_escalates_via_fast_sig => sub {
     # Child ignores SIGTERM (the polite stop) but exits cleanly on SIGQUIT, the
     # way PostgreSQL's immediate-shutdown lets the postmaster release its
     # semaphores. It must be stopped by SIGQUIT, never reaching SIGKILL.
-    my $pid = fork;
-    die "fork failed: $!" unless defined $pid;
-    if (!$pid) {
-        $SIG{TERM} = 'IGNORE';
-        $SIG{QUIT} = sub { open(my $f, '>', "$tmp/grace-quit"); close($f); POSIX::_exit(0) };
-        open(my $fh, '>', "$tmp/ready-$$") or POSIX::_exit(1);
-        close($fh);
-        sleep 0.05 while 1;
-        POSIX::_exit(0);
-    }
-    my $w = time;
-    until (-e "$tmp/ready-$pid") { die "not ready" if time - $w > 5; sleep 0.01 }
+    my $pid = spawn_child(
+        TERM => 'IGNORE',
+        QUIT => sub { open(my $f, '>', "$tmp/grace-quit"); close($f); POSIX::_exit(0) },
+    );
 
     my $start = time;
     ok(lives { DBIx::QuickDB::Watcher->_watcher_kill('TERM', $pid, 'QUIT') },
@@ -144,18 +132,7 @@ subtest graceful_kill_escalates_to_sigkill => sub {
     local $ENV{QDB_STOP_GRACE} = 1;
     local $SIG{__WARN__} = sub { };
 
-    my $pid = fork;
-    die "fork failed: $!" unless defined $pid;
-    if (!$pid) {
-        $SIG{TERM} = 'IGNORE';
-        $SIG{QUIT} = 'IGNORE';
-        open(my $fh, '>', "$tmp/ready-$$") or POSIX::_exit(1);
-        close($fh);
-        sleep 0.05 while 1;
-        POSIX::_exit(0);
-    }
-    my $w = time;
-    until (-e "$tmp/ready-$pid") { die "not ready" if time - $w > 5; sleep 0.01 }
+    my $pid = spawn_child(TERM => 'IGNORE', QUIT => 'IGNORE');
 
     ok(lives { DBIx::QuickDB::Watcher->_watcher_kill('TERM', $pid, 'QUIT') },
         "_watcher_kill reaped a server that ignores both stop and fast_stop signals") or diag($@);
