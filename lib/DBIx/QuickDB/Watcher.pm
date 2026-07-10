@@ -97,21 +97,22 @@ sub watch {
     my $ssig = $self->{+DB}->stop_sig // 'TERM';
     my $fsig = $self->{+DB}->fast_stop_sig // 'KILL';
 
-    # Ignore SIGTERM/SIGINT before exec so the watcher cannot be killed
-    # during startup before _do_watch installs its signal handlers.
-    # SIG_IGN persists across exec, and any pending signal will be held
-    # until _do_watch replaces these with proper handlers.
-    $SIG{TERM} = 'IGNORE';
-    $SIG{INT}  = 'IGNORE';
-
-    # Block (rather than ignore) the fast-eliminate signal across the exec. A
-    # blocked signal stays *pending* instead of being discarded, so a
-    # fast_eliminate() that races server startup -- arriving after the socket is
-    # up (so the caller's start() has returned) but before _do_watch has
-    # installed its handler -- is not lost: _do_watch unblocks it once the
-    # handler is in place and it fires immediately. SIG_IGN would silently drop
-    # it, leaving the caller's wait() to block for the full stop-grace timeout.
-    POSIX::sigprocmask(POSIX::SIG_BLOCK(), POSIX::SigSet->new(POSIX::SIGUSR1()));
+    # Block (rather than ignore) every teardown signal across the exec. A
+    # blocked signal stays *pending* instead of being discarded, so a stop(),
+    # eliminate(), or fast_eliminate() that races server startup -- arriving
+    # after the socket is up (so the caller's start() has returned) but before
+    # _do_watch has installed its handlers -- is not lost: _do_watch unblocks
+    # them once the handlers are in place and a pending one fires immediately.
+    #
+    # SIGTERM/SIGINT used to be SIG_IGN'd here instead, on the wrong belief
+    # that an ignored signal is "held" across exec -- it is DISCARDED. A
+    # stop() landing in the exec window (perl startup + module load in the
+    # fresh watcher) was silently dropped, the watcher never learned it should
+    # stop, and the caller's wait() eventually gave up and killed the watcher,
+    # orphaning a still-running server whose data dir stayed locked. The
+    # build-then-immediately-stop pattern (DBIx::QuickDB::Pool) hit that
+    # window constantly.
+    POSIX::sigprocmask(POSIX::SIG_BLOCK(), POSIX::SigSet->new(POSIX::SIGUSR1(), POSIX::SIGINT(), POSIX::SIGTERM()));
 
     exec(
         $^X, '-Ilib',
@@ -142,11 +143,11 @@ sub _do_watch {
     local $SIG{USR1} = sub { $kill = 'FAST_TERM' };
     local $SIG{HUP}  = sub { $hup  = 1 };
 
-    # watch() blocked SIGUSR1 before exec so a fast_eliminate() racing startup
-    # would stay pending rather than be discarded. Now that the handler above is
-    # installed, unblock it -- any pending fast-eliminate fires here and sets
-    # $kill before we enter the watch loop.
-    POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), POSIX::SigSet->new(POSIX::SIGUSR1()));
+    # watch() blocked the teardown signals before exec so a stop/eliminate/
+    # fast_eliminate racing startup stays pending rather than being discarded.
+    # Now that the handlers above are installed, unblock them -- any pending
+    # teardown fires here and sets $kill before we enter the watch loop.
+    POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), POSIX::SigSet->new(POSIX::SIGUSR1(), POSIX::SIGINT(), POSIX::SIGTERM()));
 
     my $blah;
     close(STDIN);
