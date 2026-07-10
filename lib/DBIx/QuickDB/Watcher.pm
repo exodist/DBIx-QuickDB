@@ -406,28 +406,67 @@ sub wait {
     my $self = shift;
     my $pid = $self->{+WATCHER_PID} or return;
 
-    # Give the watcher long enough to finish a graceful shutdown before we
-    # SIGKILL it. The watcher escalates to SIGKILL on the server after
-    # QDB_STOP_GRACE and gives up at twice that, so this must outlast the
-    # watcher's give-up or we would kill it mid-shutdown and orphan a
-    # half-stopped server. Defaults to 10s (grace 4 -> give-up 8 -> 10).
+    # Give the watcher long enough to finish a graceful shutdown. The watcher
+    # escalates to SIGKILL on the server after QDB_STOP_GRACE and then BLOCKS
+    # until the server is reaped, so this must outlast the watcher's own
+    # escalation schedule. Defaults to 10s (grace 4 -> give-up 8 -> 10).
     my $grace = $ENV{QDB_STOP_GRACE};
     $grace = 4 unless defined($grace) && $grace =~ /^\d+$/ && $grace > 0;
     my $timeout = $grace * 2 + 2;
 
+    # A watcher that outlives $timeout is almost never hung -- the usual
+    # cause is a server the kernel has not been able to kill yet (e.g. stuck
+    # in disk-sleep under heavy I/O), with the watcher dutifully blocking on
+    # the post-SIGKILL reap. Killing the watcher at that point orphans a
+    # still-alive server, so stop() would return "success" while the data dir
+    # is locked by a live postmaster/mysqld and the next start on that dir
+    # fails on the stale lock file. So past $timeout we only warn, keep
+    # waiting on a much longer leash, and SIGKILL the watcher purely as a
+    # last resort. Tunable via QDB_STOP_LEASH (extra seconds past $timeout).
+    my $extra = $ENV{QDB_STOP_LEASH};
+    $extra = 60 unless defined($extra) && $extra =~ /^\d+$/ && $extra > 0;
+    my $leash = $timeout + $extra;
+
+    my ($warned, $nuked);
     my $start = time;
     while(kill(0, $pid)) {
         my $waited = time - $start;
-        if ($waited > $timeout) {
-            kill('KILL', $pid);
-            $start = time;
+
+        if ($waited > $timeout && !$warned++) {
+            warn "Watcher (pid $pid) did not finish within ${timeout}s; the server is probably stuck mid-shutdown, waiting up to ${extra}s longer for it to die";
         }
+
+        if ($waited > $leash && !$nuked++) {
+            warn "Watcher (pid $pid) still running after ${leash}s, killing it; the server may survive as an orphan";
+            kill('KILL', $pid);
+            $start = time;    # from here just wait for the SIGKILL to land
+        }
+
         sleep 0.02;
     }
 
     # The watcher has exited; forget its pid so no later teardown signal (e.g.
     # from DESTROY) can land on a recycled pid now owned by another process.
     delete $self->{+WATCHER_PID};
+
+    # A voluntary watcher exit guarantees the server was reaped first, but the
+    # watcher can also die abnormally (or we just SIGKILLed it above), leaving
+    # the server alive. Verify with a read-only kill(0) probe -- NEVER send
+    # the server pid a real signal here: the pid may already be recycled to an
+    # unrelated process (the pid-reuse hazard the watcher teardown guards
+    # against), so a false "alive" can only cost a bounded wait and a warning,
+    # never a wrong-process kill. In the normal case the server is long dead
+    # and this costs a single failed kill(0).
+    if (my $spid = $self->{+SERVER_PID}) {
+        my $sstart = time;
+        while (kill(0, $spid)) {
+            if (time - $sstart > $timeout) {
+                warn "Server (pid $spid) still appears to be alive after its watcher exited; its data dir may still be locked";
+                last;
+            }
+            sleep 0.02;
+        }
+    }
 }
 
 sub DESTROY {
