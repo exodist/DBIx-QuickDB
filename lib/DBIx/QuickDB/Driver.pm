@@ -2,7 +2,7 @@ package DBIx::QuickDB::Driver;
 use strict;
 use warnings;
 
-our $VERSION = '0.000055';
+our $VERSION = '0.000056';
 
 use Carp qw/croak confess/;
 use File::Temp qw/tempdir/;
