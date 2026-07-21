@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+0.000056  2026-07-21 11:35:25-07:00 America/Los_Angeles
+
     - Added a no_disconnect_handles driver attribute (inheritable by clones) that skips the teardown-time DBI handle disconnect, for callers that hold their own live handles to the db being stopped (e.g. MySQL, which shuts down fine with clients connected).
 
 0.000055  2026-07-14 12:20:42-07:00 America/Los_Angeles
